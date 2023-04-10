@@ -53,7 +53,7 @@ Interested in self-hosting Typebot on your server? Take a look at the [self-host
 2. Install dependencies
 
    ```sh
-   cd typebot.io
+   cd alt-bot.io
    pnpm i
    ```
 
