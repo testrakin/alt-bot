@@ -15,21 +15,39 @@ import { DashboardHeader } from './DashboardHeader'
 import { FolderContent } from '@/features/folders/components/FolderContent'
 import { TypebotDndProvider } from '@/features/folders/TypebotDndProvider'
 import { ParentModalProvider } from '@/features/graph/providers/ParentModalProvider'
+import { trpc } from '@/lib/trpc'
 
 export const DashboardPage = () => {
   const scopedT = useScopedI18n('dashboard')
   const [isLoading, setIsLoading] = useState(false)
-  const { query } = useRouter()
+  const router = useRouter()
   const { user } = useUser()
   const { workspace } = useWorkspace()
   const [preCheckoutPlan, setPreCheckoutPlan] =
     useState<PreCheckoutModalProps['selectedSubscription']>()
+  const { mutate: createCustomCheckoutSession } =
+    trpc.billing.createCustomCheckoutSession.useMutation({
+      onSuccess: (data) => {
+        router.push(data.checkoutUrl)
+      },
+    })
 
   useEffect(() => {
-    const { subscribePlan, chats, storage } = query as {
-      subscribePlan: Plan | undefined
-      chats: string | undefined
-      storage: string | undefined
+    const { subscribePlan, chats, storage, isYearly, claimCustomPlan } =
+      router.query as {
+        subscribePlan: Plan | undefined
+        chats: string | undefined
+        storage: string | undefined
+        isYearly: string | undefined
+        claimCustomPlan: string | undefined
+      }
+    if (claimCustomPlan && user?.email && workspace) {
+      setIsLoading(true)
+      createCustomCheckoutSession({
+        email: user.email,
+        workspaceId: workspace.id,
+        returnUrl: `${window.location.origin}/typebots`,
+      })
     }
     if (workspace && subscribePlan && user && workspace.plan === 'FREE') {
       setIsLoading(true)
@@ -39,9 +57,10 @@ export const DashboardPage = () => {
         additionalChats: chats ? parseInt(chats) : 0,
         additionalStorage: storage ? parseInt(storage) : 0,
         currency: guessIfUserIsEuropean() ? 'eur' : 'usd',
+        isYearly: isYearly === 'false' ? false : true,
       })
     }
-  }, [query, user, workspace])
+  }, [createCustomCheckoutSession, router.query, user, workspace])
 
   return (
     <Stack minH="100vh">

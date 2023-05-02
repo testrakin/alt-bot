@@ -21,7 +21,6 @@ export const createCheckoutSession = authenticatedProcedure
       email: z.string(),
       company: z.string(),
       workspaceId: z.string(),
-      prefilledEmail: z.string().optional(),
       currency: z.enum(['usd', 'eur']),
       plan: z.enum([Plan.STARTER, Plan.PRO]),
       returnUrl: z.string(),
@@ -33,6 +32,7 @@ export const createCheckoutSession = authenticatedProcedure
           value: z.string(),
         })
         .optional(),
+      isYearly: z.boolean(),
     })
   )
   .output(
@@ -52,14 +52,11 @@ export const createCheckoutSession = authenticatedProcedure
         returnUrl,
         additionalChats,
         additionalStorage,
+        isYearly,
       },
       ctx: { user },
     }) => {
-      if (
-        !process.env.STRIPE_SECRET_KEY ||
-        !process.env.STRIPE_ADDITIONAL_CHATS_PRICE_ID ||
-        !process.env.STRIPE_ADDITIONAL_STORAGE_PRICE_ID
-      )
+      if (!process.env.STRIPE_SECRET_KEY)
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: 'Stripe environment variables are missing',
@@ -120,7 +117,8 @@ export const createCheckoutSession = authenticatedProcedure
         line_items: parseSubscriptionItems(
           plan,
           additionalChats,
-          additionalStorage
+          additionalStorage,
+          isYearly
         ),
       })
 

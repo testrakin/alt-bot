@@ -295,6 +295,54 @@
                             "data"
                           ],
                           "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "userId": {
+                              "type": "string"
+                            },
+                            "workspaceId": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string",
+                              "enum": [
+                                "Workspace limit reached"
+                              ]
+                            },
+                            "data": {
+                              "type": "object",
+                              "properties": {
+                                "chatsLimit": {
+                                  "type": "number"
+                                },
+                                "storageLimit": {
+                                  "type": "number"
+                                },
+                                "totalChatsUsed": {
+                                  "type": "number"
+                                },
+                                "totalStorageUsed": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "chatsLimit",
+                                "storageLimit",
+                                "totalChatsUsed",
+                                "totalStorageUsed"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "userId",
+                            "workspaceId",
+                            "name",
+                            "data"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     }
@@ -480,9 +528,7 @@
                                                   }
                                                 },
                                                 "required": [
-                                                  "html",
-                                                  "richText",
-                                                  "plainText"
+                                                  "richText"
                                                 ],
                                                 "additionalProperties": false
                                               }
@@ -518,6 +564,18 @@
                                                 "properties": {
                                                   "url": {
                                                     "type": "string"
+                                                  },
+                                                  "clickLink": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "url": {
+                                                        "type": "string"
+                                                      },
+                                                      "alt": {
+                                                        "type": "string"
+                                                      }
+                                                    },
+                                                    "additionalProperties": false
                                                   }
                                                 },
                                                 "additionalProperties": false
@@ -788,6 +846,9 @@
                                                   },
                                                   "dynamicVariableId": {
                                                     "type": "string"
+                                                  },
+                                                  "isSearchable": {
+                                                    "type": "boolean"
                                                   }
                                                 },
                                                 "required": [
@@ -1604,6 +1665,9 @@
                                                   },
                                                   "isCode": {
                                                     "type": "boolean"
+                                                  },
+                                                  "isExecutedOnClient": {
+                                                    "type": "boolean"
                                                   }
                                                 },
                                                 "additionalProperties": false
@@ -1727,6 +1791,121 @@
                                               "id",
                                               "groupId",
                                               "type",
+                                              "options"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "id": {
+                                                "type": "string"
+                                              },
+                                              "groupId": {
+                                                "type": "string"
+                                              },
+                                              "outgoingEdgeId": {
+                                                "type": "string"
+                                              },
+                                              "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "AB test"
+                                                ]
+                                              },
+                                              "items": {
+                                                "type": "array",
+                                                "minItems": 2,
+                                                "maxItems": 2,
+                                                "items": [
+                                                  {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "id": {
+                                                        "type": "string"
+                                                      },
+                                                      "blockId": {
+                                                        "type": "string"
+                                                      },
+                                                      "outgoingEdgeId": {
+                                                        "type": "string"
+                                                      },
+                                                      "type": {
+                                                        "type": "number",
+                                                        "enum": [
+                                                          2
+                                                        ]
+                                                      },
+                                                      "path": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "a"
+                                                        ]
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "id",
+                                                      "blockId",
+                                                      "type",
+                                                      "path"
+                                                    ],
+                                                    "additionalProperties": false
+                                                  },
+                                                  {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "id": {
+                                                        "type": "string"
+                                                      },
+                                                      "blockId": {
+                                                        "type": "string"
+                                                      },
+                                                      "outgoingEdgeId": {
+                                                        "type": "string"
+                                                      },
+                                                      "type": {
+                                                        "type": "number",
+                                                        "enum": [
+                                                          2
+                                                        ]
+                                                      },
+                                                      "path": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "b"
+                                                        ]
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "id",
+                                                      "blockId",
+                                                      "type",
+                                                      "path"
+                                                    ],
+                                                    "additionalProperties": false
+                                                  }
+                                                ]
+                                              },
+                                              "options": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "aPercent": {
+                                                    "type": "number",
+                                                    "minimum": 0,
+                                                    "maximum": 100
+                                                  }
+                                                },
+                                                "required": [
+                                                  "aPercent"
+                                                ],
+                                                "additionalProperties": false
+                                              }
+                                            },
+                                            "required": [
+                                              "id",
+                                              "groupId",
+                                              "type",
+                                              "items",
                                               "options"
                                             ],
                                             "additionalProperties": false
@@ -3062,6 +3241,9 @@
                         "customSeatsLimit": {
                           "type": "number",
                           "nullable": true
+                        },
+                        "isQuarantined": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -3080,7 +3262,8 @@
                         "storageLimitSecondEmailSentAt",
                         "customChatsLimit",
                         "customStorageLimit",
-                        "customSeatsLimit"
+                        "customSeatsLimit",
+                        "isQuarantined"
                       ],
                       "additionalProperties": false
                     }
@@ -3203,6 +3386,9 @@
                         "customSeatsLimit": {
                           "type": "number",
                           "nullable": true
+                        },
+                        "isQuarantined": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -3221,7 +3407,8 @@
                         "storageLimitSecondEmailSentAt",
                         "customChatsLimit",
                         "customStorageLimit",
-                        "customSeatsLimit"
+                        "customSeatsLimit",
+                        "isQuarantined"
                       ],
                       "additionalProperties": false
                     }
@@ -3361,6 +3548,9 @@
                         "customSeatsLimit": {
                           "type": "number",
                           "nullable": true
+                        },
+                        "isQuarantined": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -3379,7 +3569,8 @@
                         "storageLimitSecondEmailSentAt",
                         "customChatsLimit",
                         "customStorageLimit",
-                        "customSeatsLimit"
+                        "customSeatsLimit",
+                        "isQuarantined"
                       ],
                       "additionalProperties": false
                     }
@@ -4370,10 +4561,10 @@
         }
       }
     },
-    "/billing/subscription": {
-      "delete": {
-        "operationId": "mutation.billing.cancelSubscription",
-        "summary": "Cancel current subscription",
+    "/billing/subscription/checkout": {
+      "post": {
+        "operationId": "mutation.billing.createCheckoutSession",
+        "summary": "Create checkout session to create a new subscription",
         "tags": [
           "Billing"
         ],
@@ -4382,16 +4573,85 @@
             "Authorization": []
           }
         ],
-        "parameters": [
-          {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "company": {
+                    "type": "string"
+                  },
+                  "workspaceId": {
+                    "type": "string"
+                  },
+                  "prefilledEmail": {
+                    "type": "string"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "enum": [
+                      "usd",
+                      "eur"
+                    ]
+                  },
+                  "plan": {
+                    "type": "string",
+                    "enum": [
+                      "STARTER",
+                      "PRO"
+                    ]
+                  },
+                  "returnUrl": {
+                    "type": "string"
+                  },
+                  "additionalChats": {
+                    "type": "number"
+                  },
+                  "additionalStorage": {
+                    "type": "number"
+                  },
+                  "vat": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "value"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "isYearly": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "email",
+                  "company",
+                  "workspaceId",
+                  "currency",
+                  "plan",
+                  "returnUrl",
+                  "additionalChats",
+                  "additionalStorage",
+                  "isYearly"
+                ],
+                "additionalProperties": false
+              }
             }
           }
-        ],
+        },
+        "parameters": [],
         "responses": {
           "200": {
             "description": "Successful response",
@@ -4400,15 +4660,12 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string",
-                      "enum": [
-                        "success"
-                      ]
+                    "checkoutUrl": {
+                      "type": "string"
                     }
                   },
                   "required": [
-                    "message"
+                    "checkoutUrl"
                   ],
                   "additionalProperties": false
                 }
@@ -4419,7 +4676,9 @@
             "$ref": "#/components/responses/error"
           }
         }
-      },
+      }
+    },
+    "/billing/subscription": {
       "patch": {
         "operationId": "mutation.billing.updateSubscription",
         "summary": "Update subscription",
@@ -4460,6 +4719,9 @@
                       "usd",
                       "eur"
                     ]
+                  },
+                  "isYearly": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -4467,7 +4729,8 @@
                   "plan",
                   "additionalChats",
                   "additionalStorage",
-                  "currency"
+                  "currency",
+                  "isYearly"
                 ],
                 "additionalProperties": false
               }
@@ -4557,6 +4820,9 @@
                         "customSeatsLimit": {
                           "type": "number",
                           "nullable": true
+                        },
+                        "isQuarantined": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -4575,7 +4841,8 @@
                         "storageLimitSecondEmailSentAt",
                         "customChatsLimit",
                         "customStorageLimit",
-                        "customSeatsLimit"
+                        "customSeatsLimit",
+                        "isQuarantined"
                       ],
                       "additionalProperties": false
                     }
@@ -4623,145 +4890,42 @@
                   "type": "object",
                   "properties": {
                     "subscription": {
-                      "type": "object",
-                      "properties": {
-                        "additionalChatsIndex": {
-                          "type": "number"
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "isYearly": {
+                              "type": "boolean"
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "eur",
+                                "usd"
+                              ]
+                            },
+                            "cancelDate": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "required": [
+                            "isYearly",
+                            "currency"
+                          ],
+                          "additionalProperties": false
                         },
-                        "additionalStorageIndex": {
-                          "type": "number"
-                        },
-                        "currency": {
-                          "type": "string",
+                        {
                           "enum": [
-                            "eur",
-                            "usd"
-                          ]
+                            "null"
+                          ],
+                          "nullable": true
                         }
-                      },
-                      "required": [
-                        "additionalChatsIndex",
-                        "additionalStorageIndex",
-                        "currency"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   },
                   "required": [
                     "subscription"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "$ref": "#/components/responses/error"
-          }
-        }
-      }
-    },
-    "/billing/subscription/checkout": {
-      "post": {
-        "operationId": "mutation.billing.createCheckoutSession",
-        "summary": "Create checkout session to create a new subscription",
-        "tags": [
-          "Billing"
-        ],
-        "security": [
-          {
-            "Authorization": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "email": {
-                    "type": "string"
-                  },
-                  "company": {
-                    "type": "string"
-                  },
-                  "workspaceId": {
-                    "type": "string"
-                  },
-                  "prefilledEmail": {
-                    "type": "string"
-                  },
-                  "currency": {
-                    "type": "string",
-                    "enum": [
-                      "usd",
-                      "eur"
-                    ]
-                  },
-                  "plan": {
-                    "type": "string",
-                    "enum": [
-                      "STARTER",
-                      "PRO"
-                    ]
-                  },
-                  "returnUrl": {
-                    "type": "string"
-                  },
-                  "additionalChats": {
-                    "type": "number"
-                  },
-                  "additionalStorage": {
-                    "type": "number"
-                  },
-                  "vat": {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "type": "string"
-                      },
-                      "value": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "value"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "email",
-                  "company",
-                  "workspaceId",
-                  "currency",
-                  "plan",
-                  "returnUrl",
-                  "additionalChats",
-                  "additionalStorage"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        },
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "checkoutUrl": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "checkoutUrl"
                   ],
                   "additionalProperties": false
                 }

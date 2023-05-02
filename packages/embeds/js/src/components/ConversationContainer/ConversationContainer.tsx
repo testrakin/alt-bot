@@ -70,7 +70,12 @@ export const ConversationContainer = (props: Props) => {
         )
         for (const action of actionsBeforeFirstBubble) {
           const response = await executeClientSideAction(action)
-          if (response) setBlockedPopupUrl(response.blockedPopupUrl)
+          if (response && 'replyToSend' in response) {
+            sendMessage(response.replyToSend)
+            return
+          }
+          if (response && 'blockedPopupUrl' in response)
+            setBlockedPopupUrl(response.blockedPopupUrl)
         }
       }
     })()
@@ -101,7 +106,7 @@ export const ConversationContainer = (props: Props) => {
       setHasError(true)
       props.onNewLogs?.([
         {
-          description: 'Error while sending message',
+          description: 'Failed to send the reply',
           details: error,
           status: 'error',
         },
@@ -122,7 +127,12 @@ export const ConversationContainer = (props: Props) => {
       )
       for (const action of actionsBeforeFirstBubble) {
         const response = await executeClientSideAction(action)
-        if (response) setBlockedPopupUrl(response.blockedPopupUrl)
+        if (response && 'replyToSend' in response) {
+          sendMessage(response.replyToSend)
+          return
+        }
+        if (response && 'blockedPopupUrl' in response)
+          setBlockedPopupUrl(response.blockedPopupUrl)
       }
     }
     setChatChunks((displayedChunks) => [
@@ -159,7 +169,12 @@ export const ConversationContainer = (props: Props) => {
       )
       for (const action of actionsToExecute) {
         const response = await executeClientSideAction(action)
-        if (response) setBlockedPopupUrl(response.blockedPopupUrl)
+        if (response && 'replyToSend' in response) {
+          sendMessage(response.replyToSend)
+          return
+        }
+        if (response && 'blockedPopupUrl' in response)
+          setBlockedPopupUrl(response.blockedPopupUrl)
       }
     }
   }
@@ -169,7 +184,7 @@ export const ConversationContainer = (props: Props) => {
   return (
     <div
       ref={chatContainer}
-      class="overflow-y-scroll w-full min-h-full px-3 pt-10 relative scrollable-container typebot-chat-view scroll-smooth"
+      class="flex flex-col overflow-y-scroll w-full min-h-full px-3 pt-10 relative scrollable-container typebot-chat-view scroll-smooth gap-2"
     >
       <For each={chatChunks()}>
         {(chatChunk, index) => (
@@ -187,6 +202,7 @@ export const ConversationContainer = (props: Props) => {
             onSkip={handleSkip}
             context={props.context}
             hasError={hasError() && index() === chatChunks().length - 1}
+            hideAvatar={!chatChunk.input && index() < chatChunks().length - 1}
           />
         )}
       </For>
@@ -212,5 +228,5 @@ type BottomSpacerProps = {
   ref: HTMLDivElement | undefined
 }
 const BottomSpacer = (props: BottomSpacerProps) => {
-  return <div ref={props.ref} class="w-full h-32" />
+  return <div ref={props.ref} class="w-full h-32 flex-shrink-0" />
 }

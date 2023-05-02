@@ -1,10 +1,12 @@
 import { TypingBubble } from '@/components'
 import type { TextBubbleContent, TypingEmulation } from '@typebot.io/schemas'
-import { createSignal, onCleanup, onMount } from 'solid-js'
-import { computeTypingDuration } from '../utils/computeTypingDuration'
+import { For, createSignal, onCleanup, onMount } from 'solid-js'
+import { computeTypingDuration } from '../helpers/computeTypingDuration'
+import { PlateBlock } from './plate/PlateBlock'
+import { computePlainText } from '../helpers/convertRichTextToPlainText'
 
 type Props = {
-  content: Pick<TextBubbleContent, 'html' | 'plainText'>
+  content: TextBubbleContent
   typingEmulation: TypingEmulation
   onTransitionEnd: () => void
 }
@@ -32,11 +34,12 @@ export const TextBubble = (props: Props) => {
 
   onMount(() => {
     if (!isTyping) return
+    const plainText = computePlainText(props.content.richText)
     const typingDuration =
       props.typingEmulation?.enabled === false
         ? 0
         : computeTypingDuration(
-            props.content.plainText,
+            plainText,
             props.typingEmulation ?? defaultTypingEmulation
           )
     typingTimeout = setTimeout(onTypingEnd, typingDuration)
@@ -48,7 +51,7 @@ export const TextBubble = (props: Props) => {
 
   return (
     <div class="flex flex-col animate-fade-in">
-      <div class="flex mb-2 w-full items-center">
+      <div class="flex w-full items-center">
         <div class="flex relative items-start typebot-host-bubble">
           <div
             class="flex items-center absolute px-4 py-2 bubble-typing "
@@ -60,13 +63,16 @@ export const TextBubble = (props: Props) => {
           >
             {isTyping() && <TypingBubble />}
           </div>
-          <p
+          <div
             class={
               'overflow-hidden text-fade-in mx-4 my-2 whitespace-pre-wrap slate-html-container relative text-ellipsis ' +
               (isTyping() ? 'opacity-0 h-6' : 'opacity-100 h-full')
             }
-            innerHTML={props.content.html}
-          />
+          >
+            <For each={props.content.richText}>
+              {(element) => <PlateBlock element={element} />}
+            </For>
+          </div>
         </div>
       </div>
     </div>

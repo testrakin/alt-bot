@@ -89,6 +89,7 @@ model Workspace {
   customChatsLimit              Int?
   customStorageLimit            Int?
   customSeatsLimit              Int?
+  isQuarantined                 Boolean               @default(false)
   themeTemplates                ThemeTemplate[]
 }
 
@@ -297,6 +298,10 @@ model ClaimableCustomPlan {
   chatsLimit   Int
   storageLimit Int
   seatsLimit   Int
+  isYearly     Boolean   @default(false)
+  companyName  String?
+  vatType      String?
+  vatValue     String?
 }
 
 model ChatSession {

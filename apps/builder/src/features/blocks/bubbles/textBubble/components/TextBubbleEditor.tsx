@@ -1,16 +1,10 @@
 import { Flex, Stack, useColorModeValue } from '@chakra-ui/react'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Plate, PlateProvider, usePlateEditorRef } from '@udecode/plate-core'
 import { editorStyle, platePlugins } from '@/lib/plate'
 import { BaseEditor, BaseSelection, Transforms } from 'slate'
-import {
-  defaultTextBubbleContent,
-  TextBubbleContent,
-  Variable,
-} from '@typebot.io/schemas'
+import { Variable } from '@typebot.io/schemas'
 import { ReactEditor } from 'slate-react'
-import { serializeHtml } from '@udecode/plate-serializer-html'
-import { parseHtmlStringToPlainText } from '../utils'
 import { VariableSearchInput } from '@/components/inputs/VariableSearchInput'
 import { colors } from '@/lib/theme'
 import { useOutsideClick } from '@/hooks/useOutsideClick'
@@ -20,7 +14,7 @@ import { TextEditorToolBar } from './TextEditorToolBar'
 type TextBubbleEditorContentProps = {
   id: string
   textEditorValue: TElement[]
-  onClose: (newContent: TextBubbleContent) => void
+  onClose: (newContent: TElement[]) => void
 }
 
 const TextBubbleEditorContent = ({
@@ -37,24 +31,15 @@ const TextBubbleEditorContent = ({
 
   const textEditorRef = useRef<HTMLDivElement>(null)
 
-  const closeEditor = () => onClose(convertValueToBlockContent(textEditorValue))
+  const closeEditor = () => onClose(textEditorValue)
 
   useOutsideClick({
     ref: textEditorRef,
     handler: closeEditor,
   })
 
-  useEffect(() => {
-    if (!isVariableDropdownOpen) return
-    const el = varDropdownRef.current
-    if (!el) return
-    const { top, left } = computeTargetCoord()
-    el.style.top = `${top}px`
-    el.style.left = `${left}px`
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVariableDropdownOpen])
-
-  const computeTargetCoord = () => {
+  const computeTargetCoord = useCallback(() => {
+    if (rememberedSelection.current) return { top: 0, left: 0 }
     const selection = window.getSelection()
     const relativeParent = textEditorRef.current
     if (!selection || !relativeParent) return { top: 0, left: 0 }
@@ -65,19 +50,17 @@ const TextBubbleEditorContent = ({
       top: selectionBoundingRect.bottom - relativeRect.top,
       left: selectionBoundingRect.left - relativeRect.left,
     }
-  }
+  }, [])
 
-  const convertValueToBlockContent = (value: TElement[]): TextBubbleContent => {
-    if (value.length === 0) defaultTextBubbleContent
-    const html = serializeHtml(editor, {
-      nodes: value,
-    })
-    return {
-      html,
-      richText: value,
-      plainText: parseHtmlStringToPlainText(html),
-    }
-  }
+  useEffect(() => {
+    if (!isVariableDropdownOpen) return
+    const el = varDropdownRef.current
+    if (!el) return
+    const { top, left } = computeTargetCoord()
+    if (top === 0 && left === 0) return
+    el.style.top = `${top}px`
+    el.style.left = `${left}px`
+  }, [computeTargetCoord, isVariableDropdownOpen])
 
   const handleVariableSelected = (variable?: Variable) => {
     setIsVariableDropdownOpen(false)
@@ -128,6 +111,7 @@ const TextBubbleEditorContent = ({
           style: editorStyle(useColorModeValue('white', colors.gray[850])),
           autoFocus: true,
           onFocus: () => {
+            rememberedSelection.current = null
             if (!isFirstFocus) return
             if (editor.children.length === 0) return
             selectEditor(editor, {
@@ -170,7 +154,7 @@ const TextBubbleEditorContent = ({
 type TextBubbleEditorProps = {
   id: string
   initialValue: TElement[]
-  onClose: (newContent: TextBubbleContent) => void
+  onClose: (newContent: TElement[]) => void
 }
 
 export const TextBubbleEditor = ({
