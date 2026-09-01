@@ -1,67 +1,131 @@
-import { ShortTextInput } from '@/components'
-import { SendButton } from '@/components/SendButton'
-import { InputSubmitContent } from '@/types'
-import { isMobile } from '@/utils/isMobileSignal'
-import type { NumberInputBlock } from '@typebot.io/schemas'
-import { createSignal, onMount } from 'solid-js'
+import { NumberInput as ArkNumberInput, useNumberInput } from "@ark-ui/solid";
+import {
+  defaultNumberInputButtonLabel,
+  defaultNumberInputPlaceholder,
+  defaultNumberInputStyle,
+  NumberInputStyle,
+} from "@typebot.io/blocks-inputs/number/constants";
+import type { NumberInputBlock } from "@typebot.io/blocks-inputs/number/schema";
+import { guessDeviceIsMobile } from "@typebot.io/lib/guessDeviceIsMobile";
+import { safeParseFloat } from "@typebot.io/lib/safeParseFloat";
+import { onCleanup, onMount } from "solid-js";
+import { ChevronDownIcon } from "../../../../../components/icons/ChevronDownIcon";
+import { ChevronUpIcon } from "../../../../../components/icons/ChevronUpIcon";
+import { SendButton } from "../../../../../components/SendButton";
+import type { InputSubmitContent } from "../../../../../types";
+import type { CommandData } from "../../../../commands/types";
 
 type NumberInputProps = {
-  block: NumberInputBlock
-  defaultValue?: string
-  onSubmit: (value: InputSubmitContent) => void
-}
+  block: NumberInputBlock;
+  defaultValue?: string;
+  onSubmit: (value: InputSubmitContent) => void;
+};
 
 export const NumberInput = (props: NumberInputProps) => {
-  const [inputValue, setInputValue] = createSignal(props.defaultValue ?? '')
-  let inputRef: HTMLInputElement | undefined
+  const numberInput = useNumberInput({
+    locale: navigator.language,
+    formatOptions: parseFormatOptions(props.block.options),
+    min: safeParseFloat(props.block.options?.min),
+    max: safeParseFloat(props.block.options?.max),
+    step: safeParseFloat(props.block.options?.step),
+  });
+  let inputRef: HTMLInputElement | undefined;
 
-  const handleInput = (inputValue: string) => setInputValue(inputValue)
-
-  const checkIfInputIsValid = () =>
-    inputValue() !== '' && inputRef?.reportValidity()
+  const isInputValid = () => {
+    if (numberInput().invalid) {
+      inputRef?.reportValidity();
+      return false;
+    }
+    return true;
+  };
 
   const submit = () => {
-    if (checkIfInputIsValid()) props.onSubmit({ value: inputValue() })
-  }
+    if (isInputValid()) {
+      props.onSubmit({
+        type: "text",
+        value: numberInput().valueAsNumber.toString(),
+        label: numberInput().value.toString(),
+      });
+    } else numberInput().focus();
+  };
 
-  const submitWhenEnter = (e: KeyboardEvent) => {
-    if (e.key === 'Enter') submit()
-  }
+  const handleSubmit = (event: Event) => {
+    event.preventDefault();
+    submit();
+  };
 
   onMount(() => {
-    if (!isMobile() && inputRef) inputRef.focus()
-  })
+    if (!guessDeviceIsMobile() && inputRef)
+      inputRef.focus({ preventScroll: true });
+    window.addEventListener("message", processIncomingEvent);
+  });
+
+  onCleanup(() => {
+    window.removeEventListener("message", processIncomingEvent);
+  });
+
+  const processIncomingEvent = (event: MessageEvent<CommandData>) => {
+    const { data } = event;
+    if (!data.isFromTypebot) return;
+    if (data.command === "setInputValue")
+      numberInput().setValue(Number(data.value));
+  };
 
   return (
-    <div
-      class={'flex items-end justify-between pr-2 typebot-input w-full'}
-      data-testid="input"
-      style={{
-        'max-width': '350px',
-      }}
-      onKeyDown={submitWhenEnter}
+    <form
+      class="typebot-input-form flex w-full gap-2 items-end max-w-[350px]"
+      onSubmit={handleSubmit}
     >
-      <ShortTextInput
-        ref={inputRef}
-        value={inputValue()}
-        placeholder={
-          props.block.options?.labels?.placeholder ?? 'Type your answer...'
-        }
-        onInput={handleInput}
-        type="number"
-        style={{ appearance: 'auto' }}
-        min={props.block.options?.min}
-        max={props.block.options?.max}
-        step={props.block.options?.step ?? 'any'}
-      />
-      <SendButton
-        type="button"
-        isDisabled={inputValue() === ''}
-        class="my-2 ml-2"
-        on:click={submit}
+      <ArkNumberInput.RootProvider
+        value={numberInput}
+        class="flex typebot-input w-full"
       >
-        {props.block.options?.labels?.button ?? 'Send'}
+        <ArkNumberInput.Input
+          ref={inputRef}
+          class="focus:outline-none bg-transparent px-4 py-4 flex-1 w-full text-input"
+          style={{ "font-size": "16px", appearance: "auto" }}
+          placeholder={
+            props.block.options?.labels?.placeholder ??
+            defaultNumberInputPlaceholder
+          }
+        />
+        <ArkNumberInput.Control class="flex flex-col rounded-r-md overflow-hidden divide-y h-[56px]">
+          <ArkNumberInput.IncrementTrigger
+            type="button"
+            class="flex items-center justify-center h-7 w-8 border-input-border border-l"
+          >
+            <ChevronUpIcon class="size-4" />
+          </ArkNumberInput.IncrementTrigger>
+          <ArkNumberInput.DecrementTrigger
+            type="button"
+            class="flex items-center justify-center h-7 w-8 border-input-border border-l"
+          >
+            <ChevronDownIcon class="size-4" />
+          </ArkNumberInput.DecrementTrigger>
+        </ArkNumberInput.Control>
+      </ArkNumberInput.RootProvider>
+      <SendButton type="submit" class="h-14">
+        {props.block.options?.labels?.button ?? defaultNumberInputButtonLabel}
       </SendButton>
-    </div>
-  )
-}
+    </form>
+  );
+};
+
+const parseFormatOptions = (
+  options: NumberInputBlock["options"],
+): Intl.NumberFormatOptions => {
+  const defaultFormat = {
+    style: defaultNumberInputStyle,
+  };
+  if (options?.style === NumberInputStyle.CURRENCY && options.currency)
+    return {
+      style: options.style,
+      currency: options.currency,
+    };
+  if (options?.style === NumberInputStyle.UNIT && options.unit)
+    return {
+      style: options.style,
+      unit: options.unit,
+    };
+  return defaultFormat;
+};

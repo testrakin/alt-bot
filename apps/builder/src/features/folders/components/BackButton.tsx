@@ -1,34 +1,37 @@
-import { Button } from '@chakra-ui/react'
-import { ChevronLeftIcon } from '@/components/icons'
-import { useTypebotDnd } from '../TypebotDndProvider'
-import Link from 'next/link'
-import React, { useMemo } from 'react'
-import { useI18n } from '@/locales'
+import { useTranslate } from "@tolgee/react";
+import { ArrowLeft01Icon } from "@typebot.io/ui/icons/ArrowLeft01Icon";
+import { cn } from "@typebot.io/ui/lib/cn";
+import { useMemo } from "react";
+import { ButtonLink } from "@/components/ButtonLink";
+import { useTypebotDnd } from "../TypebotDndProvider";
 
 export const BackButton = ({ id }: { id: string | null }) => {
-  const t = useI18n()
+  const { t } = useTranslate();
   const { draggedTypebot, setMouseOverFolderId, mouseOverFolderId } =
-    useTypebotDnd()
+    useTypebotDnd();
 
   const isTypebotOver = useMemo(
     () => draggedTypebot && mouseOverFolderId === id,
-    [draggedTypebot, id, mouseOverFolderId]
-  )
+    [draggedTypebot, id, mouseOverFolderId],
+  );
 
-  const handleMouseEnter = () => setMouseOverFolderId(id)
-  const handleMouseLeave = () => setMouseOverFolderId(undefined)
+  const handleMouseEnter = () => setMouseOverFolderId(id);
+  const handleMouseLeave = () => setMouseOverFolderId(undefined);
   return (
-    <Button
-      as={Link}
-      href={id ? `/typebots/folders/${id}` : '/typebots'}
-      leftIcon={<ChevronLeftIcon />}
-      variant={'outline'}
-      colorScheme={isTypebotOver ? 'blue' : 'gray'}
-      borderWidth={isTypebotOver ? '3px' : '1px'}
+    <ButtonLink
+      href={id ? `/typebots/folders/${id}` : "/typebots"}
+      variant={
+        isTypebotOver || draggedTypebot ? "outline" : "outline-secondary"
+      }
+      className={cn(
+        "bg-gray-1",
+        (isTypebotOver || draggedTypebot) && "border-2 border-orange-8 ",
+      )}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      {t('back')}
-    </Button>
-  )
-}
+      <ArrowLeft01Icon />
+      {t("back")}
+    </ButtonLink>
+  );
+};

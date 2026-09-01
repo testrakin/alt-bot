@@ -1,11 +1,15 @@
-import React from 'react'
-import { Text } from '@chakra-ui/react'
-import { ScriptOptions } from '@typebot.io/schemas'
+import { defaultScriptOptions } from "@typebot.io/blocks-logic/script/constants";
+import type { ScriptBlock } from "@typebot.io/blocks-logic/script/schema";
+import { cx } from "@typebot.io/ui/lib/cva";
 
-type Props = ScriptOptions
+type Props = {
+  options: ScriptBlock["options"];
+};
 
-export const ScriptNodeContent = ({ name, content }: Props) => (
-  <Text color={content ? 'currentcolor' : 'gray.500'} noOfLines={1}>
-    {content ? `Run ${name}` : 'Configure...'}
-  </Text>
-)
+export const ScriptNodeContent = ({
+  options: { name, content } = {},
+}: Props) => (
+  <p className={cx("truncate", content ? "text-gray-12" : "text-gray-9")}>
+    {content ? `Run ${name ?? defaultScriptOptions.name}` : "Configure..."}
+  </p>
+);

@@ -1,69 +1,60 @@
-import { chakra, Fade, Button, useColorModeValue } from '@chakra-ui/react'
-import { Cell as CellProps, flexRender } from '@tanstack/react-table'
-import { ExpandIcon } from '@/components/icons'
-import { memo } from 'react'
-import { TableData } from '../../types'
+import { type Cell as CellProps, flexRender } from "@tanstack/react-table";
+import type { TableData } from "@typebot.io/results/schemas/results";
+import { Button } from "@typebot.io/ui/components/Button";
+import { ArrowExpand01Icon } from "@typebot.io/ui/icons/ArrowExpand01Icon";
+import { cx } from "@typebot.io/ui/lib/cva";
+import { memo } from "react";
 
 type Props = {
-  cell: CellProps<TableData, unknown>
-  size: number
-  isExpandButtonVisible: boolean
-  rowIndex: number
-  cellIndex: number
-  isSelected: boolean
-  onExpandButtonClick: () => void
-}
+  cell: CellProps<TableData, unknown>;
+  size: number;
+  isExpandButtonVisible: boolean;
+  cellIndex: number;
+  isSelected: boolean;
+  onExpandButtonClick: () => void;
+};
 
 const Cell = ({
   cell,
   size,
   isExpandButtonVisible,
-  rowIndex,
   cellIndex,
   onExpandButtonClick,
 }: Props) => {
   return (
-    <chakra.td
+    <td
       key={cell.id}
-      px="4"
-      py="2"
-      borderWidth={rowIndex === 0 ? '0 1px 1px 1px' : '1px'}
-      borderColor={useColorModeValue('gray.200', 'gray.700')}
-      whiteSpace="pre-wrap"
-      pos="relative"
-      style={{
-        minWidth: size,
-        maxWidth: size,
-      }}
+      style={
+        {
+          "--size": `${size}px`,
+        } as React.CSSProperties
+      }
+      className={cx(
+        "px-4 py-2 border-b border-r first:border-l border-gray-6 whitespace-pre-wrap not-has-[button]:truncate relative min-w-(--size) max-w-(--size)",
+      )}
     >
       {flexRender(cell.column.columnDef.cell, cell.getContext())}
-      <chakra.span
-        pos="absolute"
-        top="0"
-        right={2}
-        h="full"
-        display="inline-flex"
-        alignItems="center"
-      >
-        <Fade unmountOnExit in={isExpandButtonVisible && cellIndex === 1}>
+      <span className="absolute top-0 right-2 h-full inline-flex items-center">
+        {isExpandButtonVisible && cellIndex === 1 && (
           <Button
-            leftIcon={<ExpandIcon />}
-            shadow="lg"
+            className="shadow-md animate-in fade-in-0"
+            variant="secondary"
             size="xs"
             onClick={onExpandButtonClick}
           >
+            <ArrowExpand01Icon />
             Open
           </Button>
-        </Fade>
-      </chakra.span>
-    </chakra.td>
-  )
-}
+        )}
+      </span>
+    </td>
+  );
+};
 
 export default memo(
   Cell,
   (prev, next) =>
     prev.size === next.size &&
     prev.isExpandButtonVisible === next.isExpandButtonVisible &&
-    prev.isSelected === next.isSelected
-)
+    prev.isSelected === next.isSelected,
+);

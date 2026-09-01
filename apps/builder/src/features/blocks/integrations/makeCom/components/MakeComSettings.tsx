@@ -1,76 +1,80 @@
-import { Alert, AlertIcon, Button, Link, Stack, Text } from '@chakra-ui/react'
-import { ExternalLinkIcon } from '@/components/icons'
-import { useTypebot } from '@/features/editor/providers/TypebotProvider'
-import { MakeComBlock, Webhook, WebhookOptions } from '@typebot.io/schemas'
-import React, { useCallback, useEffect, useState } from 'react'
-import { byId } from '@typebot.io/lib'
-import { WebhookAdvancedConfigForm } from '../../webhook/components/WebhookAdvancedConfigForm'
+import type { HttpRequest } from "@typebot.io/blocks-integrations/httpRequest/schema";
+import type { MakeComBlock } from "@typebot.io/blocks-integrations/makeCom/schema";
+import { Alert } from "@typebot.io/ui/components/Alert";
+import { ArrowUpRight01Icon } from "@typebot.io/ui/icons/ArrowUpRight01Icon";
+import { CheckmarkSquare02Icon } from "@typebot.io/ui/icons/CheckmarkSquare02Icon";
+import { InformationSquareIcon } from "@typebot.io/ui/icons/InformationSquareIcon";
+import { useRef } from "react";
+import { ButtonLink } from "@/components/ButtonLink";
+import { HttpRequestAdvancedConfigForm } from "../../httpRequest/components/HttpRequestAdvancedConfigForm";
 
 type Props = {
-  block: MakeComBlock
-  onOptionsChange: (options: WebhookOptions) => void
-}
+  block: MakeComBlock;
+  onOptionsChange: (options: MakeComBlock["options"]) => void;
+};
 
 export const MakeComSettings = ({
-  block: { webhookId, id: blockId, options },
+  block: { id: blockId, options },
   onOptionsChange,
 }: Props) => {
-  const { webhooks, updateWebhook } = useTypebot()
-  const webhook = webhooks.find(byId(webhookId))
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  const [localWebhook, _setLocalWebhook] = useState(webhook)
+  const setLocalWebhook = async (newLocalWebhook: HttpRequest) => {
+    onOptionsChange({
+      ...options,
+      webhook: newLocalWebhook,
+    });
+  };
 
-  const setLocalWebhook = useCallback(
-    async (newLocalWebhook: Webhook) => {
-      _setLocalWebhook(newLocalWebhook)
-      await updateWebhook(newLocalWebhook.id, newLocalWebhook)
-    },
-    [updateWebhook]
-  )
+  const url = options?.webhook?.url;
 
-  useEffect(() => {
-    if (
-      !localWebhook ||
-      localWebhook.url ||
-      !webhook?.url ||
-      webhook.url === localWebhook.url
-    )
-      return
-    setLocalWebhook({
-      ...localWebhook,
-      url: webhook?.url,
-    })
-  }, [webhook, localWebhook, setLocalWebhook])
+  const handleNewTestResponse = () => {
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
+    }, 100);
+  };
 
   return (
-    <Stack spacing={4}>
-      <Alert status={localWebhook?.url ? 'success' : 'info'} rounded="md">
-        <AlertIcon />
-        {localWebhook?.url ? (
-          <>Your scenario is correctly configured 🚀</>
+    <div className="flex flex-col gap-0">
+      <div className="flex flex-col gap-4">
+        {url ? (
+          <Alert.Root variant="success">
+            <CheckmarkSquare02Icon />
+            <Alert.Description>
+              Your scenario is correctly configured 🚀
+            </Alert.Description>
+          </Alert.Root>
         ) : (
-          <Stack>
-            <Text>Head up to Make.com to configure this block:</Text>
-            <Button
-              as={Link}
-              href="https://www.make.com/en/integrations/typebot"
-              isExternal
-              colorScheme="blue"
-            >
-              <Text mr="2">Make.com</Text> <ExternalLinkIcon />
-            </Button>
-          </Stack>
+          <Alert.Root variant="info">
+            <InformationSquareIcon />
+            <Alert.Description>
+              Head up to Make.com to configure this block
+            </Alert.Description>
+            <Alert.Action>
+              <ButtonLink
+                size="xs"
+                variant="secondary"
+                href="https://www.make.com/en/integrations/typebot"
+                target="_blank"
+              >
+                Make.com <ArrowUpRight01Icon />
+              </ButtonLink>
+            </Alert.Action>
+          </Alert.Root>
         )}
-      </Alert>
-      {localWebhook && (
-        <WebhookAdvancedConfigForm
+        <HttpRequestAdvancedConfigForm
           blockId={blockId}
-          webhook={localWebhook}
+          httpRequest={options?.webhook}
           options={options}
-          onWebhookChange={setLocalWebhook}
+          onHttpRequestChange={setLocalWebhook}
           onOptionsChange={onOptionsChange}
+          onNewTestResponse={handleNewTestResponse}
         />
-      )}
-    </Stack>
-  )
-}
+      </div>
+      <div ref={bottomRef} />
+    </div>
+  );
+};

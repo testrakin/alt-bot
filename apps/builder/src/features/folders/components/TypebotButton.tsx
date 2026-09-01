@@ -1,209 +1,260 @@
-import React from 'react'
+import { useMutation } from "@tanstack/react-query";
+import { T, useTranslate } from "@tolgee/react";
+import { Alert } from "@typebot.io/ui/components/Alert";
+import { AlertDialog } from "@typebot.io/ui/components/AlertDialog";
+import { Badge } from "@typebot.io/ui/components/Badge";
+import { Button, buttonVariants } from "@typebot.io/ui/components/Button";
+import { EmojiOrImageIcon } from "@typebot.io/ui/components/EmojiOrImageIcon";
+import { Menu } from "@typebot.io/ui/components/Menu";
+import { useOpenControls } from "@typebot.io/ui/hooks/useOpenControls";
+import { DragDropHorizontalIcon } from "@typebot.io/ui/icons/DragDropHorizontalIcon";
+import { LayoutBottomIcon } from "@typebot.io/ui/icons/LayoutBottomIcon";
+import { MoreVerticalIcon } from "@typebot.io/ui/icons/MoreVerticalIcon";
+import { TriangleAlertIcon } from "@typebot.io/ui/icons/TriangleAlertIcon";
+import { cn } from "@typebot.io/ui/lib/cn";
+import { useRouter } from "next/router";
+import React, { memo, useRef } from "react";
+import { useDebounce } from "use-debounce";
+import type { TypebotInDashboard } from "@/features/dashboard/types";
 import {
-  Alert,
-  AlertIcon,
-  Button,
-  Flex,
-  IconButton,
-  MenuItem,
-  Stack,
-  Tag,
-  Text,
-  useDisclosure,
-  VStack,
-  WrapItem,
-} from '@chakra-ui/react'
-import { useRouter } from 'next/router'
-import { ConfirmModal } from '@/components/ConfirmModal'
-import { GripIcon } from '@/components/icons'
-import { useTypebotDnd } from '../TypebotDndProvider'
-import { useDebounce } from 'use-debounce'
-import { Plan } from '@typebot.io/prisma'
-import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
-import { useToast } from '@/hooks/useToast'
-import { MoreButton } from './MoreButton'
-import { EmojiOrImageIcon } from '@/components/EmojiOrImageIcon'
-import { deletePublishedTypebotQuery } from '@/features/publish/queries/deletePublishedTypebotQuery'
-import { useScopedI18n } from '@/locales'
-import { deleteTypebotQuery } from '@/features/dashboard/queries/deleteTypebotQuery'
-import { getTypebotQuery } from '@/features/dashboard/queries/getTypebotQuery'
-import { importTypebotQuery } from '@/features/dashboard/queries/importTypebotQuery'
-import { TypebotInDashboard } from '@/features/dashboard/types'
-import { isMobile } from '@/helpers/isMobile'
+  type NodePosition,
+  useDragDistance,
+} from "@/features/graph/providers/GraphDndProvider";
+import { duplicateName } from "@/features/typebot/helpers/duplicateName";
+import { isMobile } from "@/helpers/isMobile";
+import { orpc } from "@/lib/queryClient";
 
 type Props = {
-  typebot: TypebotInDashboard
-  isReadOnly?: boolean
-  onTypebotUpdated: () => void
-  onMouseDown?: (e: React.MouseEvent<HTMLButtonElement>) => void
-}
+  typebot: TypebotInDashboard;
+  isReadOnly?: boolean;
+  draggedTypebot: TypebotInDashboard | undefined;
+  onTypebotUpdated: () => void;
+  onDrag: (position: NodePosition) => void;
+};
 
-export const TypebotButton = ({
+const TypebotButton = ({
   typebot,
   isReadOnly = false,
+  draggedTypebot,
   onTypebotUpdated,
-  onMouseDown,
+  onDrag,
 }: Props) => {
-  const scopedT = useScopedI18n('folders.typebotButton')
-  const router = useRouter()
-  const { workspace } = useWorkspace()
-  const { draggedTypebot } = useTypebotDnd()
-  const [draggedTypebotDebounced] = useDebounce(draggedTypebot, 200)
-  const {
-    isOpen: isDeleteOpen,
-    onOpen: onDeleteOpen,
-    onClose: onDeleteClose,
-  } = useDisclosure()
+  const { t } = useTranslate();
+  const router = useRouter();
+  const [draggedTypebotDebounced] = useDebounce(draggedTypebot, 200);
+  const deleteDialogControls = useOpenControls();
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  const deleteCancelRef = useRef<HTMLButtonElement | null>(null);
 
-  const { showToast } = useToast()
+  useDragDistance({
+    ref: buttonRef,
+    onDrag,
+    deps: [],
+  });
+
+  const { mutateAsync: getTypebot } = useMutation(
+    orpc.typebot.getTypebot.mutationOptions(),
+  );
+
+  const { mutate: importTypebot } = useMutation(
+    orpc.typebot.importTypebot.mutationOptions({
+      onSuccess: ({ typebot }) => {
+        router.push(`/typebots/${typebot.id}/edit`);
+      },
+    }),
+  );
+
+  const { mutate: deleteTypebot } = useMutation(
+    orpc.typebot.deleteTypebot.mutationOptions({
+      onSuccess: () => {
+        onTypebotUpdated();
+      },
+    }),
+  );
+
+  const { mutate: unpublishTypebot } = useMutation(
+    orpc.typebot.unpublishTypebot.mutationOptions({
+      onSuccess: () => {
+        onTypebotUpdated();
+      },
+    }),
+  );
 
   const handleTypebotClick = () => {
-    if (draggedTypebotDebounced) return
+    if (draggedTypebotDebounced) return;
     router.push(
       isMobile
         ? `/typebots/${typebot.id}/results`
-        : `/typebots/${typebot.id}/edit`
-    )
-  }
+        : `/typebots/${typebot.id}/edit`,
+    );
+  };
 
   const handleDeleteTypebotClick = async () => {
-    if (isReadOnly) return
-    const { error } = await deleteTypebotQuery(typebot.id)
-    if (error)
-      return showToast({
-        description: error.message,
-      })
-    onTypebotUpdated()
-  }
+    if (isReadOnly) return;
+    deleteTypebot({
+      typebotId: typebot.id,
+    });
+  };
 
   const handleDuplicateClick = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    const { data } = await getTypebotQuery(typebot.id)
-    const typebotToDuplicate = data?.typebot
-    if (!typebotToDuplicate) return
-    const { data: createdTypebot, error } = await importTypebotQuery(
-      data.typebot,
-      workspace?.plan ?? Plan.FREE
-    )
-    if (error)
-      return showToast({
-        description: error.message,
-      })
-    if (createdTypebot) router.push(`/typebots/${createdTypebot?.id}/edit`)
-  }
+    e.stopPropagation();
+    const { typebot: typebotToDuplicate } = await getTypebot({
+      typebotId: typebot.id,
+    });
+    if (!typebotToDuplicate) return;
+    importTypebot({
+      workspaceId: typebotToDuplicate.workspaceId,
+      typebot: {
+        ...typebotToDuplicate,
+        name: duplicateName(typebotToDuplicate.name),
+      },
+    });
+  };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    onDeleteOpen()
-  }
+    e.stopPropagation();
+    deleteDialogControls.onOpen();
+  };
 
   const handleUnpublishClick = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!typebot.publishedTypebotId) return
-    const { error } = await deletePublishedTypebotQuery({
-      publishedTypebotId: typebot.publishedTypebotId,
-      typebotId: typebot.id,
-    })
-    if (error) showToast({ description: error.message })
-    else onTypebotUpdated()
-  }
+    e.stopPropagation();
+    if (!typebot.publishedTypebotId) return;
+    unpublishTypebot({ typebotId: typebot.id });
+  };
 
   return (
-    <Button
-      as={WrapItem}
-      onClick={handleTypebotClick}
-      display="flex"
-      flexDir="column"
-      variant="outline"
-      w="225px"
-      h="270px"
-      mr={{ sm: 6 }}
-      mb={6}
-      rounded="lg"
-      whiteSpace="normal"
-      opacity={draggedTypebot?.id === typebot.id ? 0.2 : 1}
-      onMouseDown={onMouseDown}
-      cursor="pointer"
-    >
-      {typebot.publishedTypebotId && (
-        <Tag
-          colorScheme="blue"
-          variant="solid"
-          rounded="full"
-          pos="absolute"
-          top="27px"
-          size="sm"
-        >
-          Live
-        </Tag>
-      )}
-      {!isReadOnly && (
-        <>
-          <IconButton
-            icon={<GripIcon />}
-            pos="absolute"
-            top="20px"
-            left="20px"
-            aria-label="Drag"
-            cursor="grab"
-            variant="ghost"
-            colorScheme="blue"
-            size="sm"
+    <>
+      {/* biome-ignore lint/a11y/useSemanticElements: This card contains nested interactive controls. */}
+      <div
+        className={cn(
+          buttonVariants({
+            variant: "outline-secondary",
+            iconStyle: "none",
+            size: "lg",
+          }),
+          "flex-col w-[225px] h-[270px] rounded-lg whitespace-normal bg-gray-1 relative",
+          draggedTypebot && "opacity-30",
+        )}
+        role="button"
+        tabIndex={0}
+        onClick={handleTypebotClick}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          handleTypebotClick();
+        }}
+      >
+        {typebot.publishedTypebotId && (
+          <Badge colorScheme="orange" className="absolute top-[27px]">
+            {t("folders.typebotButton.live")}
+          </Badge>
+        )}
+        {!isReadOnly && (
+          <>
+            <Button
+              ref={buttonRef}
+              className="absolute top-5 left-5 size-8 cursor-grab"
+              aria-label="Drag"
+              variant="ghost"
+              size="icon"
+            >
+              <DragDropHorizontalIcon />
+            </Button>
+            <Menu.Root>
+              <Menu.TriggerButton
+                aria-label={t("folders.typebotButton.showMoreOptions")}
+                data-testid="more-button"
+                onClick={(e) => e.stopPropagation()}
+                variant="outline-secondary"
+                size="icon"
+                className="absolute top-5 right-5 size-8"
+              >
+                <MoreVerticalIcon />
+              </Menu.TriggerButton>
+              <Menu.Popup align="end">
+                {typebot.publishedTypebotId && (
+                  <Menu.Item onClick={handleUnpublishClick}>
+                    {t("folders.typebotButton.unpublish")}
+                  </Menu.Item>
+                )}
+                <Menu.Item onClick={handleDuplicateClick}>
+                  {t("folders.typebotButton.duplicate")}
+                </Menu.Item>
+                <Menu.Item className="text-red-10" onClick={handleDeleteClick}>
+                  {t("delete")}
+                </Menu.Item>
+              </Menu.Popup>
+            </Menu.Root>
+          </>
+        )}
+        <div className="flex flex-col items-center gap-4">
+          <EmojiOrImageIcon
+            icon={typebot.icon}
+            className="size-9 text-[2.25rem]"
+            defaultIcon={<LayoutBottomIcon className="size-full" />}
           />
-          <MoreButton
-            pos="absolute"
-            top="20px"
-            right="20px"
-            aria-label={scopedT('showMoreOptions')}
-          >
-            {typebot.publishedTypebotId && (
-              <MenuItem onClick={handleUnpublishClick}>
-                {scopedT('unpublish')}
-              </MenuItem>
-            )}
-            <MenuItem onClick={handleDuplicateClick}>
-              {scopedT('duplicate')}
-            </MenuItem>
-            <MenuItem color="red.400" onClick={handleDeleteClick}>
-              {scopedT('delete')}
-            </MenuItem>
-          </MoreButton>
-        </>
-      )}
-      <VStack spacing="4">
-        <Flex
-          rounded="full"
-          justifyContent="center"
-          alignItems="center"
-          fontSize={'4xl'}
-        >
-          {<EmojiOrImageIcon icon={typebot.icon} boxSize={'35px'} />}
-        </Flex>
-        <Text textAlign="center" noOfLines={4} maxW="180px">
-          {typebot.name}
-        </Text>
-      </VStack>
+          <p className="text-center max-w-[180px] line-clamp-3">
+            {typebot.name}
+          </p>
+        </div>
+      </div>
       {!isReadOnly && (
-        <ConfirmModal
-          message={
-            <Stack spacing="4">
-              <Text>
-                {scopedT('deleteConfirmationMessage', {
-                  typebotName: <strong>{typebot.name}</strong>,
-                })}
-              </Text>
-              <Alert status="warning">
-                <AlertIcon />
-                {scopedT('deleteConfirmationMessageWarning')}
-              </Alert>
-            </Stack>
-          }
-          confirmButtonLabel="Delete"
-          onConfirm={handleDeleteTypebotClick}
-          isOpen={isDeleteOpen}
-          onClose={onDeleteClose}
-        />
+        <AlertDialog.Root
+          isOpen={deleteDialogControls.isOpen}
+          onClose={deleteDialogControls.onClose}
+        >
+          <AlertDialog.Content initialFocus={deleteCancelRef}>
+            <AlertDialog.Header>
+              <AlertDialog.Title>
+                {t("confirmModal.defaultTitle")}
+              </AlertDialog.Title>
+              <AlertDialog.Description className="text-foreground">
+                <div className="flex flex-col gap-4">
+                  <p>
+                    <T
+                      keyName="folders.typebotButton.deleteConfirmationMessage"
+                      params={{
+                        strong: <strong>{typebot.name}</strong>,
+                      }}
+                    />
+                  </p>
+                  <Alert.Root variant="warning">
+                    <TriangleAlertIcon />
+                    <Alert.Description>
+                      {t(
+                        "folders.typebotButton.deleteConfirmationMessageWarning",
+                      )}
+                    </Alert.Description>
+                  </Alert.Root>
+                </div>
+              </AlertDialog.Description>
+            </AlertDialog.Header>
+            <AlertDialog.Footer>
+              <AlertDialog.Cancel ref={deleteCancelRef}>
+                {t("cancel")}
+              </AlertDialog.Cancel>
+              <AlertDialog.Action
+                variant="destructive"
+                onClick={handleDeleteTypebotClick}
+              >
+                {t("delete")}
+              </AlertDialog.Action>
+            </AlertDialog.Footer>
+          </AlertDialog.Content>
+        </AlertDialog.Root>
       )}
-    </Button>
-  )
-}
+    </>
+  );
+};
+
+export default memo(
+  TypebotButton,
+  (prev, next) =>
+    prev.draggedTypebot?.id === next.draggedTypebot?.id &&
+    prev.typebot.id === next.typebot.id &&
+    prev.isReadOnly === next.isReadOnly &&
+    prev.typebot.name === next.typebot.name &&
+    prev.typebot.icon === next.typebot.icon &&
+    prev.typebot.publishedTypebotId === next.typebot.publishedTypebotId,
+);

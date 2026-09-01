@@ -1,25 +1,31 @@
-import { useScopedI18n } from '@/locales'
-import { Alert } from '@chakra-ui/react'
+import { useTranslate } from "@tolgee/react";
+import { Alert } from "@typebot.io/ui/components/Alert";
+import { TriangleAlertIcon } from "@typebot.io/ui/icons/TriangleAlertIcon";
 
 type Props = {
-  error: string
-}
+  error: string;
+};
 
 export const SignInError = ({ error }: Props) => {
-  const scopedT = useScopedI18n('auth.error')
+  const { t } = useTranslate();
   const errors: Record<string, string> = {
-    Signin: scopedT('default'),
-    OAuthSignin: scopedT('default'),
-    OAuthCallback: scopedT('default'),
-    OAuthCreateAccount: scopedT('email'),
-    EmailCreateAccount: scopedT('default'),
-    Callback: scopedT('default'),
-    OAuthAccountNotLinked: scopedT('oauthNotLinked'),
-    default: scopedT('unknown'),
-  }
+    Signin: t("auth.error.default"),
+    OAuthSignin: t("auth.error.default"),
+    OAuthCallback: t("auth.error.default"),
+    OAuthCreateAccount: t("auth.error.email"),
+    EmailCreateAccount: t("auth.error.default"),
+    Callback: t("auth.error.default"),
+    Verification:
+      "Your email authentication request is expired. Please sign in again.",
+    OAuthAccountNotLinked: t("auth.error.oauthNotLinked"),
+    default: t("auth.error.unknown"),
+  };
+
+  if (!errors[error]) return null;
   return (
-    <Alert status="error" variant="solid" rounded="md">
-      {errors[error] ?? errors[error]}
-    </Alert>
-  )
-}
+    <Alert.Root variant="error">
+      <TriangleAlertIcon />
+      <Alert.Description>{errors[error]}</Alert.Description>
+    </Alert.Root>
+  );
+};

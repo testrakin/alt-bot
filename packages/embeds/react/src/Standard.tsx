@@ -1,37 +1,36 @@
-import { useEffect, useRef } from 'react'
-import type { BotProps } from '@typebot.io/js'
+import type { BotProps } from "@typebot.io/js";
+import type React from "react";
+import { useEffect, useRef } from "react";
+import { ensureWebComponentsLoaded } from "./ensureWebComponentsLoaded";
 
 type Props = BotProps & {
-  style?: React.CSSProperties
-  className?: string
-}
+  style?: React.CSSProperties;
+  className?: string;
+};
 
-declare global {
+declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
-      'typebot-standard': React.DetailedHTMLProps<
+      "typebot-standard": React.DetailedHTMLProps<
         React.HTMLAttributes<HTMLElement>,
         HTMLElement
-      > & { class?: string }
+      > & { class?: string };
     }
   }
 }
 
-type StandardElement = HTMLElement & Props
+type StandardElement = HTMLElement & Props;
 
 export const Standard = ({ style, className, ...assignableProps }: Props) => {
-  const ref = useRef<StandardElement | null>(null)
+  const ref = useRef<StandardElement | null>(null);
 
   useEffect(() => {
-    ;(async () => {
-      await import('@typebot.io/js/dist/web')
-    })()
-  }, [])
+    void ensureWebComponentsLoaded();
+    if (!ref.current) return;
+    const { typebot, ...rest } = assignableProps;
+    // We assign typebot last to ensure initializeBot is triggered with all the initial values
+    Object.assign(ref.current, rest, { typebot });
+  }, [assignableProps]);
 
-  useEffect(() => {
-    if (!ref.current) return
-    Object.assign(ref.current, assignableProps)
-  }, [assignableProps])
-
-  return <typebot-standard ref={ref} style={style} class={className} />
-}
+  return <typebot-standard ref={ref} style={style} class={className} />;
+};

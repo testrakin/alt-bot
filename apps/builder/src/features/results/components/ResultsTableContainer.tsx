@@ -1,59 +1,65 @@
-import { Stack } from '@chakra-ui/react'
-import React, { useEffect, useState } from 'react'
-import { LogsModal } from './LogsModal'
-import { useTypebot } from '@/features/editor/providers/TypebotProvider'
-import { useResults } from '../ResultsProvider'
-import { ResultModal } from './ResultModal'
-import { ResultsTable } from './table/ResultsTable'
-import { useRouter } from 'next/router'
+import type { TimeFilter } from "@typebot.io/results/timeFilter";
+import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
+import { useTypebot } from "@/features/editor/providers/TypebotProvider";
+import { useResults } from "../ResultsProvider";
+import { LogsDialog } from "./LogsDialog";
+import { ResultDialog } from "./ResultDialog";
+import { ResultsTable } from "./table/ResultsTable";
 
-export const ResultsTableContainer = () => {
-  const { query } = useRouter()
+type Props = {
+  timeFilter: TimeFilter;
+  onTimeFilterChange: (timeFilter: TimeFilter) => void;
+};
+export const ResultsTableContainer = ({
+  timeFilter,
+  onTimeFilterChange,
+}: Props) => {
+  const { query } = useRouter();
   const {
     flatResults: results,
     fetchNextPage,
     hasNextPage,
     resultHeader,
     tableData,
-  } = useResults()
-  const { typebot, publishedTypebot } = useTypebot()
+  } = useResults();
+  const { typebot, publishedTypebot } = useTypebot();
   const [inspectingLogsResultId, setInspectingLogsResultId] = useState<
     string | null
-  >(null)
-  const [expandedResultId, setExpandedResultId] = useState<string | null>(null)
+  >(null);
+  const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
 
-  const handleLogsModalClose = () => setInspectingLogsResultId(null)
+  const handleLogsDialogClose = () => setInspectingLogsResultId(null);
 
-  const handleResultModalClose = () => setExpandedResultId(null)
+  const handleResultDialogClose = () => setExpandedResultId(null);
 
   const handleLogOpenIndex = (index: number) => () => {
-    if (!results[index]) return
-    setInspectingLogsResultId(results[index].id)
-  }
+    if (!results[index]) return;
+    setInspectingLogsResultId(results[index].id);
+  };
 
   const handleResultExpandIndex = (index: number) => () => {
-    if (!results[index]) return
-    setExpandedResultId(results[index].id)
-  }
+    if (!results[index]) return;
+    setExpandedResultId(results[index].id);
+  };
 
   useEffect(() => {
-    if (query.id) setExpandedResultId(query.id as string)
-  }, [query.id])
+    if (query.id) setExpandedResultId(query.id as string);
+  }, [query.id]);
 
   return (
-    <Stack pb="28" px={['4', '0']} spacing="4" maxW="1600px" w="full">
+    <div className="flex flex-col pb-28 gap-4 max-w-[1600px] w-full px-4 sm:px-0">
       {publishedTypebot && (
-        <LogsModal
+        <LogsDialog
           typebotId={publishedTypebot?.typebotId}
           resultId={inspectingLogsResultId}
-          onClose={handleLogsModalClose}
+          onClose={handleLogsDialogClose}
         />
       )}
-      <ResultModal
+      <ResultDialog
         resultId={expandedResultId}
-        onClose={handleResultModalClose}
+        onClose={handleResultDialogClose}
       />
-
       {typebot && (
         <ResultsTable
           preferences={typebot.resultsTablePreferences ?? undefined}
@@ -61,10 +67,12 @@ export const ResultsTableContainer = () => {
           data={tableData}
           onScrollToBottom={fetchNextPage}
           hasMore={hasNextPage}
+          timeFilter={timeFilter}
           onLogOpenIndex={handleLogOpenIndex}
           onResultExpandIndex={handleResultExpandIndex}
+          onTimeFilterChange={onTimeFilterChange}
         />
       )}
-    </Stack>
-  )
-}
+    </div>
+  );
+};

@@ -1,25 +1,27 @@
-import { Flex } from '@chakra-ui/react'
-import { TextBubbleBlock } from '@typebot.io/schemas'
-import React from 'react'
-import { PlateBlock } from './plate/PlateBlock'
+import type { TextBubbleBlock } from "@typebot.io/blocks-bubbles/text/schema";
+import { cx } from "@typebot.io/ui/lib/cva";
+import { PlateBlock } from "./plate/PlateBlock";
 
 type Props = {
-  block: TextBubbleBlock
-}
+  block: TextBubbleBlock;
+};
 
 export const TextBubbleContent = ({ block }: Props) => {
-  const isEmpty = block.content.richText.length === 0
+  const isEmpty = (block.content?.richText?.length ?? 0) === 0;
   return (
-    <Flex
-      w="90%"
-      flexDir={'column'}
-      opacity={isEmpty ? '0.5' : '1'}
-      className="slate-html-container"
-      color={isEmpty ? 'gray.500' : 'inherit'}
+    <div
+      className={cx(
+        "flex w-[90%] flex-col slate-html-container",
+        isEmpty ? "opacity-50 text-gray-9" : "opacity-100",
+      )}
     >
-      {block.content.richText.map((element, idx) => (
-        <PlateBlock key={idx} element={element} />
+      {block.content?.richText?.map((element, index) => (
+        <PlateBlock
+          // biome-ignore lint/suspicious/noArrayIndexKey: order is stable for rich text
+          key={index}
+          element={element}
+        />
       ))}
-    </Flex>
-  )
-}
+    </div>
+  );
+};

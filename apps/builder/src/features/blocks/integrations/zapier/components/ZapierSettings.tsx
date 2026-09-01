@@ -1,76 +1,84 @@
-import { Alert, AlertIcon, Button, Link, Stack, Text } from '@chakra-ui/react'
-import { ExternalLinkIcon } from '@/components/icons'
-import { useTypebot } from '@/features/editor/providers/TypebotProvider'
-import { Webhook, WebhookOptions, ZapierBlock } from '@typebot.io/schemas'
-import React, { useCallback, useEffect, useState } from 'react'
-import { byId } from '@typebot.io/lib'
-import { WebhookAdvancedConfigForm } from '../../webhook/components/WebhookAdvancedConfigForm'
+import type {
+  HttpRequest,
+  HttpRequestBlock,
+} from "@typebot.io/blocks-integrations/httpRequest/schema";
+import type { ZapierBlock } from "@typebot.io/blocks-integrations/zapier/schema";
+import { Alert } from "@typebot.io/ui/components/Alert";
+import { ArrowUpRight01Icon } from "@typebot.io/ui/icons/ArrowUpRight01Icon";
+import { CheckmarkSquare02Icon } from "@typebot.io/ui/icons/CheckmarkSquare02Icon";
+import { InformationSquareIcon } from "@typebot.io/ui/icons/InformationSquareIcon";
+import { useRef } from "react";
+import { ButtonLink } from "@/components/ButtonLink";
+import { HttpRequestAdvancedConfigForm } from "../../httpRequest/components/HttpRequestAdvancedConfigForm";
 
 type Props = {
-  block: ZapierBlock
-  onOptionsChange: (options: WebhookOptions) => void
-}
+  block: ZapierBlock;
+  onOptionsChange: (options: HttpRequestBlock["options"]) => void;
+};
 
 export const ZapierSettings = ({
-  block: { webhookId, id: blockId, options },
+  block: { id: blockId, options },
   onOptionsChange,
 }: Props) => {
-  const { webhooks, updateWebhook } = useTypebot()
-  const webhook = webhooks.find(byId(webhookId))
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  const [localWebhook, _setLocalWebhook] = useState(webhook)
+  const setLocalWebhook = async (newLocalWebhook: HttpRequest) => {
+    onOptionsChange({
+      ...options,
+      webhook: newLocalWebhook,
+    });
+    return;
+  };
 
-  const setLocalWebhook = useCallback(
-    async (newLocalWebhook: Webhook) => {
-      _setLocalWebhook(newLocalWebhook)
-      await updateWebhook(newLocalWebhook.id, newLocalWebhook)
-    },
-    [updateWebhook]
-  )
+  const url = options?.webhook?.url;
 
-  useEffect(() => {
-    if (
-      !localWebhook ||
-      localWebhook.url ||
-      !webhook?.url ||
-      webhook.url === localWebhook.url
-    )
-      return
-    setLocalWebhook({
-      ...localWebhook,
-      url: webhook?.url,
-    })
-  }, [webhook, localWebhook, setLocalWebhook])
+  const handleNewTestResponse = () => {
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
+    }, 100);
+  };
 
   return (
-    <Stack spacing={4}>
-      <Alert status={localWebhook?.url ? 'success' : 'info'} rounded="md">
-        <AlertIcon />
-        {localWebhook?.url ? (
-          <>Your zap is correctly configured 🚀</>
+    <div className="flex flex-col gap-0">
+      <div className="flex flex-col gap-4">
+        {url ? (
+          <Alert.Root variant="success">
+            <CheckmarkSquare02Icon />
+            <Alert.Description>
+              Your zap is correctly configured 🚀
+            </Alert.Description>
+          </Alert.Root>
         ) : (
-          <Stack>
-            <Text>Head up to Zapier to configure this block:</Text>
-            <Button
-              as={Link}
-              href="https://zapier.com/apps/typebot/integrations"
-              isExternal
-              colorScheme="blue"
-            >
-              <Text mr="2">Zapier</Text> <ExternalLinkIcon />
-            </Button>
-          </Stack>
+          <Alert.Root>
+            <InformationSquareIcon />
+            <Alert.Description>
+              Head up to Zapier to configure this block:
+            </Alert.Description>
+            <Alert.Action>
+              <ButtonLink
+                variant="secondary"
+                href="https://zapier.com/apps/typebot/integrations"
+                target="_blank"
+                size="xs"
+              >
+                Zapier <ArrowUpRight01Icon />
+              </ButtonLink>
+            </Alert.Action>
+          </Alert.Root>
         )}
-      </Alert>
-      {localWebhook && (
-        <WebhookAdvancedConfigForm
+        <HttpRequestAdvancedConfigForm
           blockId={blockId}
-          webhook={localWebhook}
+          httpRequest={options?.webhook}
           options={options}
-          onWebhookChange={setLocalWebhook}
+          onHttpRequestChange={setLocalWebhook}
           onOptionsChange={onOptionsChange}
+          onNewTestResponse={handleNewTestResponse}
         />
-      )}
-    </Stack>
-  )
-}
+      </div>
+      <div ref={bottomRef} />
+    </div>
+  );
+};

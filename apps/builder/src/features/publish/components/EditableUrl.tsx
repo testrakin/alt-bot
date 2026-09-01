@@ -1,24 +1,13 @@
-import {
-  HStack,
-  Tooltip,
-  EditablePreview,
-  EditableInput,
-  Text,
-  Editable,
-  Button,
-  ButtonProps,
-  useEditableControls,
-} from '@chakra-ui/react'
-import { EditIcon } from '@/components/icons'
-import { CopyButton } from '@/components/CopyButton'
-import React, { useState } from 'react'
+import { Editable } from "@typebot.io/ui/components/Editable";
+import { useState } from "react";
+import { CopyButton } from "@/components/CopyButton";
 
 type EditableUrlProps = {
-  hostname: string
-  pathname?: string
-  isValid: (newPathname: string) => Promise<boolean> | boolean
-  onPathnameChange: (pathname: string) => void
-}
+  hostname: string;
+  pathname?: string;
+  isValid: (newPathname: string) => Promise<boolean> | boolean;
+  onPathnameChange: (pathname: string) => void;
+};
 
 export const EditableUrl = ({
   hostname,
@@ -26,52 +15,29 @@ export const EditableUrl = ({
   isValid,
   onPathnameChange,
 }: EditableUrlProps) => {
-  const [value, setValue] = useState(pathname)
+  const [value, setValue] = useState(pathname);
 
   const handleSubmit = async (newPathname: string) => {
-    if (newPathname === pathname) return
-    if (await isValid(newPathname)) return onPathnameChange(newPathname)
-    setValue(pathname)
-  }
+    if (newPathname === pathname) return;
+    if (await isValid(newPathname)) return onPathnameChange(newPathname);
+    setValue(pathname);
+  };
 
   return (
-    <Editable
-      as={HStack}
-      spacing={3}
-      value={value}
-      onChange={setValue}
-      onSubmit={handleSubmit}
-    >
-      <HStack spacing={1}>
-        <Text>{hostname}/</Text>
-        <Tooltip label="Edit">
-          <EditablePreview
-            mx={1}
-            borderWidth="1px"
-            px={3}
-            rounded="md"
-            cursor="text"
-            display="flex"
-            fontWeight="semibold"
-          />
-        </Tooltip>
-        <EditableInput px={2} />
-      </HStack>
-
-      <HStack>
-        <EditButton size="xs" />
-        <CopyButton size="xs" textToCopy={`${hostname}/${value ?? ''}`} />
-      </HStack>
-    </Editable>
-  )
-}
-
-const EditButton = (props: ButtonProps) => {
-  const { isEditing, getEditButtonProps } = useEditableControls()
-
-  return isEditing ? null : (
-    <Button leftIcon={<EditIcon />} {...props} {...getEditButtonProps()}>
-      Edit
-    </Button>
-  )
-}
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
+        <p className="shrink-0">{hostname}/</p>
+        <Editable.Root
+          value={value}
+          className="font-medium max-w-xs"
+          onValueChange={setValue}
+          onValueCommit={handleSubmit}
+        >
+          <Editable.Input className="px-2" />
+          <Editable.Preview className="border-gray-7 cursor-text px-2" />
+        </Editable.Root>
+      </div>
+      <CopyButton textToCopy={`${hostname}/${value ?? ""}`} />
+    </div>
+  );
+};

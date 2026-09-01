@@ -1,30 +1,22 @@
-import {
-  Avatar,
-  HStack,
-  Menu,
-  MenuButton,
-  MenuItem,
-  MenuList,
-  Stack,
-  Tag,
-  Text,
-  useColorModeValue,
-} from '@chakra-ui/react'
-import { WorkspaceRole } from '@typebot.io/prisma'
-import React from 'react'
-import { convertWorkspaceRoleToReadable } from './AddMemberForm'
+import { useTranslate } from "@tolgee/react";
+import { WorkspaceRole } from "@typebot.io/prisma/enum";
+import { Avatar } from "@typebot.io/ui/components/Avatar";
+import { Badge } from "@typebot.io/ui/components/Badge";
+import { Menu } from "@typebot.io/ui/components/Menu";
+import { cx } from "@typebot.io/ui/lib/cva";
+import { convertWorkspaceRoleToReadable } from "./AddMemberForm";
 
 type Props = {
-  image?: string
-  name?: string
-  email: string
-  role: WorkspaceRole
-  isGuest?: boolean
-  isMe?: boolean
-  canEdit: boolean
-  onDeleteClick: () => void
-  onSelectNewRole: (role: WorkspaceRole) => void
-}
+  image?: string;
+  name?: string;
+  email: string;
+  role: WorkspaceRole;
+  isGuest?: boolean;
+  isMe?: boolean;
+  canEdit: boolean;
+  onDeleteClick: () => void;
+  onSelectNewRole: (role: WorkspaceRole) => void;
+};
 
 export const MemberItem = ({
   email,
@@ -37,17 +29,13 @@ export const MemberItem = ({
   onDeleteClick,
   onSelectNewRole,
 }: Props) => {
-  const handleAdminClick = () => onSelectNewRole(WorkspaceRole.ADMIN)
-  const handleMemberClick = () => onSelectNewRole(WorkspaceRole.MEMBER)
+  const { t } = useTranslate();
+  const handleAdminClick = () => onSelectNewRole(WorkspaceRole.ADMIN);
+  const handleMemberClick = () => onSelectNewRole(WorkspaceRole.MEMBER);
 
   return (
-    <Menu placement="bottom-end" isLazy>
-      <MenuButton
-        _hover={{
-          bg: useColorModeValue('gray.100', 'gray.700'),
-        }}
-        borderRadius="md"
-      >
+    <Menu.Root>
+      <Menu.Trigger className="hover:bg-gray-2 rounded-md transition-colors">
         <MemberIdentityContent
           email={email}
           name={name}
@@ -55,23 +43,23 @@ export const MemberItem = ({
           isGuest={isGuest}
           tag={convertWorkspaceRoleToReadable(role)}
         />
-      </MenuButton>
+      </Menu.Trigger>
       {!isMe && canEdit && (
-        <MenuList shadow="lg">
-          <MenuItem onClick={handleAdminClick}>
+        <Menu.Popup>
+          <Menu.Item onClick={handleAdminClick}>
             {convertWorkspaceRoleToReadable(WorkspaceRole.ADMIN)}
-          </MenuItem>
-          <MenuItem onClick={handleMemberClick}>
+          </Menu.Item>
+          <Menu.Item onClick={handleMemberClick}>
             {convertWorkspaceRoleToReadable(WorkspaceRole.MEMBER)}
-          </MenuItem>
-          <MenuItem color="red.500" onClick={onDeleteClick}>
-            Remove
-          </MenuItem>
-        </MenuList>
+          </Menu.Item>
+          <Menu.Item className="text-red-10" onClick={onDeleteClick}>
+            {t("remove")}
+          </Menu.Item>
+        </Menu.Popup>
       )}
-    </Menu>
-  )
-}
+    </Menu.Root>
+  );
+};
 
 export const MemberIdentityContent = ({
   name,
@@ -80,37 +68,37 @@ export const MemberIdentityContent = ({
   image,
   email,
 }: {
-  name?: string
-  tag?: string
-  image?: string
-  isGuest?: boolean
-  email: string
-}) => (
-  <HStack justifyContent="space-between" maxW="full" p="2">
-    <HStack minW={0} spacing="4">
-      <Avatar name={name} src={image} size="sm" />
-      <Stack spacing={0} minW="0">
-        {name && (
-          <Text textAlign="left" fontSize="15px">
-            {name}
-          </Text>
-        )}
-        <Text
-          color="gray.500"
-          fontSize={name ? '14px' : 'inherit'}
-          noOfLines={1}
-        >
-          {email}
-        </Text>
-      </Stack>
-    </HStack>
-    <HStack flexShrink={0}>
-      {isGuest && (
-        <Tag color="gray.400" data-testid="tag">
-          Pending
-        </Tag>
-      )}
-      <Tag data-testid="tag">{tag}</Tag>
-    </HStack>
-  </HStack>
-)
+  name?: string;
+  tag?: string;
+  image?: string;
+  isGuest?: boolean;
+  email: string;
+}) => {
+  const { t } = useTranslate();
+
+  return (
+    <div className="flex items-center gap-2 justify-between max-w-full p-2">
+      <div className="flex items-center min-w-0 gap-4">
+        <Avatar.Root className="size-12">
+          <Avatar.Image src={image} alt="User" />
+          <Avatar.Fallback>{name?.charAt(0)}</Avatar.Fallback>
+        </Avatar.Root>
+        <div className="flex flex-col gap-0 min-w-0">
+          {name && <p className="text-left text-[15px]">{name}</p>}
+          <p
+            className={cx(
+              "truncate text-gray-9",
+              name ? "text-sm" : "text-base",
+            )}
+          >
+            {email}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {isGuest && <Badge className="text-gray-8">{t("pending")}</Badge>}
+        <Badge>{tag}</Badge>
+      </div>
+    </div>
+  );
+};

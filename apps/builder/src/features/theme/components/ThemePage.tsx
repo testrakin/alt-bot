@@ -1,31 +1,39 @@
-import { Seo } from '@/components/Seo'
-import { TypebotHeader } from '@/features/editor/components/TypebotHeader'
-import { useTypebot } from '@/features/editor/providers/TypebotProvider'
-import { Flex } from '@chakra-ui/react'
-import { Standard } from '@typebot.io/react'
-import { ThemeSideMenu } from './ThemeSideMenu'
+import { Standard } from "@typebot.io/react";
+import { defaultBackgroundColor } from "@typebot.io/theme/constants";
+import { Seo } from "@/components/Seo";
+import { TypebotHeader } from "@/features/editor/components/TypebotHeader";
+import { useTypebot } from "@/features/editor/providers/TypebotProvider";
+import { ThemeSideMenu } from "./ThemeSideMenu";
 
 export const ThemePage = () => {
-  const { typebot } = useTypebot()
+  const { typebot } = useTypebot();
 
   return (
-    <Flex overflow="hidden" h="100vh" flexDir="column">
-      <Seo title={typebot?.name ? `${typebot.name} | Theme` : 'Theme'} />
+    <div className="flex overflow-hidden h-screen flex-col">
+      <Seo title={typebot?.name ? `${typebot.name} | Theme` : "Theme"} />
       <TypebotHeader />
-      <Flex h="full" w="full">
+      <div className="flex items-center w-full gap-4 h-[calc(100vh-var(--header-height))]">
         <ThemeSideMenu />
-        <Flex flex="1">
+        <div className="flex flex-1 h-[calc(100%-2rem)] w-full border rounded-xl mr-4 bg-gray-1">
           {typebot && (
             <Standard
-              typebot={typebot}
+              typebot={typebot.id}
+              previewSettings={typebot.settings}
+              previewTheme={typebot.theme}
+              isPreview
+              apiHost={window.location.origin}
               style={{
-                width: '100%',
-                height: '100%',
+                borderRadius: "0.75rem",
+                width: "100%",
+                height: "100%",
+                backgroundColor:
+                  typebot.theme.general?.background?.content ??
+                  defaultBackgroundColor[typebot.version],
               }}
             />
           )}
-        </Flex>
-      </Flex>
-    </Flex>
-  )
-}
+        </div>
+      </div>
+    </div>
+  );
+};

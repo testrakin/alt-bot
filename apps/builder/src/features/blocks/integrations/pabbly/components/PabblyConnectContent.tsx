@@ -1,21 +1,11 @@
-import { Text } from '@chakra-ui/react'
-import { useTypebot } from '@/features/editor/providers/TypebotProvider'
-import { PabblyConnectBlock } from '@typebot.io/schemas'
-import { byId, isNotDefined } from '@typebot.io/lib'
+import type { PabblyConnectBlock } from "@typebot.io/blocks-integrations/pabblyConnect/schema";
 
 type Props = {
-  block: PabblyConnectBlock
-}
+  block: PabblyConnectBlock;
+};
 
 export const PabblyConnectContent = ({ block }: Props) => {
-  const { webhooks } = useTypebot()
-  const webhook = webhooks.find(byId(block.webhookId))
-
-  if (isNotDefined(webhook?.body))
-    return <Text color="gray.500">Configure...</Text>
-  return (
-    <Text noOfLines={1} pr="6">
-      {webhook?.url ? 'Trigger scenario' : 'Disabled'}
-    </Text>
-  )
-}
+  if (!block.options?.webhook?.url)
+    return <p className="text-gray-9">Configure...</p>;
+  return <p className="pr-6 truncate">Trigger scenario</p>;
+};

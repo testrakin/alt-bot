@@ -1,82 +1,195 @@
-import { SendButton } from '@/components/SendButton'
-import { InputSubmitContent } from '@/types'
-import { isMobile } from '@/utils/isMobileSignal'
-import type { ChoiceInputBlock } from '@typebot.io/schemas'
-import { createSignal, For } from 'solid-js'
-import { Checkbox } from './Checkbox'
+import { defaultChoiceInputOptions } from "@typebot.io/blocks-inputs/choice/constants";
+import type { ChoiceInputBlock } from "@typebot.io/blocks-inputs/choice/schema";
+import { guessDeviceIsMobile } from "@typebot.io/lib/guessDeviceIsMobile";
+import { createSignal, For, onMount, Show } from "solid-js";
+import { SearchInput } from "../../../../../components/inputs/SearchInput";
+import { SendButton } from "../../../../../components/SendButton";
+import type { InputSubmitContent } from "../../../../../types";
+import { Checkbox } from "./Checkbox";
 
 type Props = {
-  inputIndex: number
-  items: ChoiceInputBlock['items']
-  options: ChoiceInputBlock['options']
-  onSubmit: (value: InputSubmitContent) => void
-}
+  defaultItems: ChoiceInputBlock["items"];
+  options: ChoiceInputBlock["options"];
+  onSubmit: (value: InputSubmitContent) => void;
+};
 
 export const MultipleChoicesForm = (props: Props) => {
-  const [selectedIndices, setSelectedIndices] = createSignal<number[]>([])
+  let inputRef: HTMLInputElement | undefined;
+  const [filteredItems, setFilteredItems] = createSignal(
+    props.options?.isSearchable &&
+      !props.options?.areInitialSearchButtonsVisible
+      ? []
+      : props.defaultItems,
+  );
+  const [selectedItemIds, setSelectedItemIds] = createSignal<string[]>([]);
 
-  const handleClick = (itemIndex: number) => {
-    toggleSelectedItemIndex(itemIndex)
-  }
+  onMount(() => {
+    if (!guessDeviceIsMobile() && inputRef)
+      inputRef.focus({ preventScroll: true });
+  });
 
-  const toggleSelectedItemIndex = (itemIndex: number) => {
-    const existingIndex = selectedIndices().indexOf(itemIndex)
+  const handleClick = (itemId: string) => {
+    toggleSelectedItemId(itemId);
+  };
+
+  const toggleSelectedItemId = (itemId: string) => {
+    const existingIndex = selectedItemIds().indexOf(itemId);
     if (existingIndex !== -1) {
-      setSelectedIndices((selectedIndices) =>
-        selectedIndices.filter((index) => index !== itemIndex)
-      )
+      setSelectedItemIds((selectedItemIds) =>
+        selectedItemIds.filter((selectedItemId) => selectedItemId !== itemId),
+      );
     } else {
-      setSelectedIndices((selectedIndices) => [...selectedIndices, itemIndex])
+      setSelectedItemIds((selectedIndices) => [...selectedIndices, itemId]);
     }
-  }
+  };
 
-  const handleSubmit = () =>
+  const handleSubmit = () => {
+    const selectedItems = selectedItemIds().map((selectedItemId) =>
+      props.defaultItems.find((item) => item.id === selectedItemId),
+    );
+    const hasInternalValue = selectedItems.some((item) => item?.value);
+
     props.onSubmit({
-      value: selectedIndices()
-        .map((itemIndex) => props.items[itemIndex].content)
-        .join(', '),
-    })
+      type: "text",
+      value: selectedItems
+        .map((item) => {
+          return item?.value ?? item?.content;
+        })
+        .join(", "),
+      label: hasInternalValue
+        ? selectedItems
+            .map((item) => {
+              return item?.content ?? item?.value;
+            })
+            .join(", ")
+        : undefined,
+    });
+  };
+
+  const filterItems = (inputValue: string) => {
+    if (inputValue === "" || inputValue.trim().length === 0) {
+      setFilteredItems(
+        !props.options?.areInitialSearchButtonsVisible
+          ? []
+          : props.defaultItems,
+      );
+      return;
+    }
+
+    setFilteredItems(
+      props.defaultItems.filter((item) =>
+        item.content?.toLowerCase().includes(inputValue.toLowerCase()),
+      ),
+    );
+  };
 
   return (
-    <form class="flex flex-col items-end gap-2" onSubmit={handleSubmit}>
-      <div class="flex flex-wrap justify-end gap-2">
-        <For each={props.items}>
-          {(item, index) => (
-            <span class={'relative' + (isMobile() ? ' w-full' : '')}>
-              <div
-                role="checkbox"
-                aria-checked={selectedIndices().some(
-                  (selectedIndex) => selectedIndex === index()
-                )}
-                on:click={() => handleClick(index())}
+    <form
+      class="flex flex-col items-end gap-2 w-full typebot-buttons-input"
+      onSubmit={handleSubmit}
+    >
+      <Show when={props.options?.isSearchable}>
+        <div class="flex items-end typebot-input w-full">
+          <SearchInput
+            ref={inputRef}
+            onInput={filterItems}
+            placeholder={
+              props.options?.searchInputPlaceholder ??
+              defaultChoiceInputOptions.searchInputPlaceholder
+            }
+            onClear={() =>
+              setFilteredItems(
+                !props.options?.areInitialSearchButtonsVisible
+                  ? []
+                  : props.defaultItems,
+              )
+            }
+          />
+        </div>
+      </Show>
+      <div
+        class={
+          "flex justify-end gap-2" +
+          (props.options?.isSearchable
+            ? " overflow-y-scroll max-h-80 rounded-md"
+            : "")
+        }
+        data-slot="list"
+      >
+        <For each={filteredItems()}>
+          {(item) => (
+            <span class="relative w-full @xs:w-auto">
+              <label
                 class={
-                  'w-full py-2 px-4 font-semibold focus:outline-none cursor-pointer select-none typebot-selectable' +
-                  (selectedIndices().some(
-                    (selectedIndex) => selectedIndex === index()
+                  "block w-full py-2 px-4 font-semibold focus:outline-none cursor-pointer select-none typebot-selectable" +
+                  (selectedItemIds().some(
+                    (selectedItemId) => selectedItemId === item.id,
                   )
-                    ? ' selected'
-                    : '')
+                    ? " selected"
+                    : "")
                 }
                 data-itemid={item.id}
               >
+                <input
+                  type="checkbox"
+                  class="sr-only"
+                  checked={selectedItemIds().some(
+                    (selectedItemId) => selectedItemId === item.id,
+                  )}
+                  on:change={() => handleClick(item.id)}
+                />
                 <div class="flex items-center gap-2">
                   <Checkbox
-                    isChecked={selectedIndices().some(
-                      (selectedIndex) => selectedIndex === index()
+                    isChecked={selectedItemIds().some(
+                      (selectedItemId) => selectedItemId === item.id,
                     )}
+                    class="shrink-0"
                   />
                   <span>{item.content}</span>
                 </div>
-              </div>
+              </label>
+            </span>
+          )}
+        </For>
+        <For
+          each={selectedItemIds().filter((selectedItemId) =>
+            filteredItems().every((item) => item.id !== selectedItemId),
+          )}
+        >
+          {(selectedItemId) => (
+            <span class="relative w-full @xs:w-auto">
+              <label
+                class={
+                  "block w-full py-2 px-4 font-semibold focus:outline-none cursor-pointer select-none typebot-selectable selected"
+                }
+                data-itemid={selectedItemId}
+              >
+                <input
+                  type="checkbox"
+                  class="sr-only"
+                  checked
+                  on:change={() => handleClick(selectedItemId)}
+                />
+                <div class="flex items-center gap-2">
+                  <Checkbox isChecked />
+                  <span>
+                    {
+                      props.defaultItems.find(
+                        (item) => item.id === selectedItemId,
+                      )?.content
+                    }
+                  </span>
+                </div>
+              </label>
             </span>
           )}
         </For>
       </div>
-      {selectedIndices().length > 0 && (
+      {selectedItemIds().length > 0 && (
         <SendButton disableIcon>
-          {props.options?.buttonLabel ?? 'Send'}
+          {props.options?.buttonLabel ?? defaultChoiceInputOptions.buttonLabel}
         </SendButton>
       )}
     </form>
-  )
-}
+  );
+};

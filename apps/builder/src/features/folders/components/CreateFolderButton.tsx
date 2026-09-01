@@ -1,40 +1,47 @@
-import { Button, HStack, useDisclosure, Text } from '@chakra-ui/react'
-import { FolderPlusIcon } from '@/components/icons'
-import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
-import { Plan } from '@typebot.io/prisma'
-import React from 'react'
-import { useI18n, useScopedI18n } from '@/locales'
-import { ChangePlanModal } from '@/features/billing/components/ChangePlanModal'
-import { LockTag } from '@/features/billing/components/LockTag'
-import { isFreePlan } from '@/features/billing/helpers/isFreePlan'
+import { useTranslate } from "@tolgee/react";
+import { Badge } from "@typebot.io/ui/components/Badge";
+import { Button } from "@typebot.io/ui/components/Button";
+import { useOpenControls } from "@typebot.io/ui/hooks/useOpenControls";
+import { FolderAddIcon } from "@typebot.io/ui/icons/FolderAddIcon";
+import { SquareLock01Icon } from "@typebot.io/ui/icons/SquareLock01Icon";
+import { ChangePlanDialog } from "@/features/billing/components/ChangePlanDialog";
+import { isFreePlan } from "@/features/billing/helpers/isFreePlan";
+import { useWorkspace } from "@/features/workspace/WorkspaceProvider";
 
-type Props = { isLoading: boolean; onClick: () => void }
+type Props = { isLoading: boolean; onClick: () => void };
 
 export const CreateFolderButton = ({ isLoading, onClick }: Props) => {
-  const t = useI18n()
-  const scopedT = useScopedI18n('folders.createFolderButton')
-  const { workspace } = useWorkspace()
-  const { isOpen, onOpen, onClose } = useDisclosure()
+  const { t } = useTranslate();
+  const { workspace } = useWorkspace();
+  const { isOpen, onOpen, onClose } = useOpenControls();
 
   const handleClick = () => {
-    if (isFreePlan(workspace)) return onOpen()
-    onClick()
-  }
+    if (isFreePlan(workspace)) return onOpen();
+    onClick();
+  };
   return (
-    <Button
-      leftIcon={<FolderPlusIcon />}
-      onClick={handleClick}
-      isLoading={isLoading}
-    >
-      <HStack>
-        <Text>{scopedT('label')}</Text>
-        {isFreePlan(workspace) && <LockTag plan={Plan.STARTER} />}
-      </HStack>
-      <ChangePlanModal
+    <>
+      <Button
+        onClick={handleClick}
+        disabled={isLoading}
+        variant="outline-secondary"
+        className="bg-gray-1"
+      >
+        <FolderAddIcon className="text-blue-10" />
+        <div className="flex items-center gap-2">
+          <p>{t("folders.createFolderButton.label")}</p>
+          {isFreePlan(workspace) && (
+            <Badge colorScheme="orange">
+              <SquareLock01Icon />
+            </Badge>
+          )}
+        </div>
+      </Button>
+      <ChangePlanDialog
         isOpen={isOpen}
         onClose={onClose}
-        type={t('billing.limitMessage.folder')}
+        type={t("billing.limitMessage.folder")}
       />
-    </Button>
-  )
-}
+    </>
+  );
+};

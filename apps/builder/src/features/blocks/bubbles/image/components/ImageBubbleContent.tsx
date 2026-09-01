@@ -1,22 +1,38 @@
-import { Box, Text, Image } from '@chakra-ui/react'
-import { ImageBubbleBlock } from '@typebot.io/schemas'
+import { useTranslate } from "@tolgee/react";
+import type { ImageBubbleBlock } from "@typebot.io/blocks-bubbles/image/schema";
+import { cx } from "@typebot.io/ui/lib/cva";
+import { findUniqueVariable } from "@typebot.io/variables/findUniqueVariable";
+import { useTypebot } from "@/features/editor/providers/TypebotProvider";
+import { VariableTag } from "@/features/graph/components/nodes/block/VariableTag";
 
-export const ImageBubbleContent = ({ block }: { block: ImageBubbleBlock }) => {
-  const containsVariables =
-    block.content?.url?.includes('{{') && block.content.url.includes('}}')
+type Props = {
+  block: ImageBubbleBlock;
+};
+
+export const ImageBubbleContent = ({ block }: Props) => {
+  const { typebot } = useTypebot();
+  const { t } = useTranslate();
+  const variable = typebot
+    ? findUniqueVariable(typebot?.variables)(block.content?.url)
+    : null;
   return !block.content?.url ? (
-    <Text color={'gray.500'}>Click to edit...</Text>
+    <p color={"gray.500"}>{t("clickToEdit")}</p>
+  ) : variable ? (
+    <p>
+      Display <VariableTag variableName={variable.name} />
+    </p>
   ) : (
-    <Box w="full">
-      <Image
-        pointerEvents="none"
-        src={
-          containsVariables ? '/images/dynamic-image.png' : block.content?.url
-        }
-        alt="Group image"
-        rounded="md"
-        objectFit="cover"
+    <div className="w-full">
+      <img
+        className={cx(
+          "object-cover rounded-md pointer-events-none",
+          block.content?.url.startsWith("data:image/svg")
+            ? "max-h-[80px]"
+            : undefined,
+        )}
+        src={block.content?.url}
+        alt={block.content?.clickLink?.alt ?? "Group visual"}
       />
-    </Box>
-  )
-}
+    </div>
+  );
+};

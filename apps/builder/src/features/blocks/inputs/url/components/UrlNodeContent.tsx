@@ -1,18 +1,18 @@
-import React from 'react'
-import { Text } from '@chakra-ui/react'
-import { UrlInputOptions } from '@typebot.io/schemas'
-import { WithVariableContent } from '@/features/graph/components/nodes/block/WithVariableContent'
+import { defaultUrlInputOptions } from "@typebot.io/blocks-inputs/url/constants";
+import type { UrlInputBlock } from "@typebot.io/blocks-inputs/url/schema";
+import { WithVariableContent } from "@/features/graph/components/nodes/block/WithVariableContent";
 
 type Props = {
-  variableId?: string
-  placeholder: UrlInputOptions['labels']['placeholder']
-}
+  options: UrlInputBlock["options"];
+};
 
-export const UrlNodeContent = ({ placeholder, variableId }: Props) =>
-  variableId ? (
-    <WithVariableContent variableId={variableId} />
+export const UrlNodeContent = ({ options }: Props) => {
+  return options?.variableId ? (
+    <WithVariableContent variableId={options.variableId} />
   ) : (
-    <Text color={'gray.500'} w="90%">
-      {placeholder}
-    </Text>
-  )
+    <p className="w-[90%]" color={"gray.500"}>
+      {options?.labels?.placeholder ??
+        defaultUrlInputOptions.labels.placeholder}
+    </p>
+  );
+};

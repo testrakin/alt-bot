@@ -1,27 +1,26 @@
-import { useColorModeValue, HStack, Tag, Text } from '@chakra-ui/react'
-import { Variable } from '@typebot.io/schemas'
+import { useTranslate } from "@tolgee/react";
+import { Badge } from "@typebot.io/ui/components/Badge";
+import type { Variable } from "@typebot.io/variables/schemas";
 
 export const SetVariableLabel = ({
   variableId,
   variables,
 }: {
-  variableId: string
-  variables?: Variable[]
+  variableId: string;
+  variables?: Variable[];
 }) => {
-  const textColor = useColorModeValue('gray.600', 'gray.400')
+  const { t } = useTranslate();
   const variableName = variables?.find(
-    (variable) => variable.id === variableId
-  )?.name
+    (variable) => variable.id === variableId,
+  )?.name;
 
-  if (!variableName) return null
+  if (!variableName) return null;
   return (
-    <HStack fontStyle="italic" spacing={1}>
-      <Text fontSize="sm" color={textColor}>
-        Set
-      </Text>
-      <Tag bg="orange.400" color="white" size="sm">
+    <div className="flex items-center gap-1 italic">
+      <p className="text-sm text-gray-8">{t("variables.set")}</p>
+      <Badge colorScheme="purple" className="break-all">
         {variableName}
-      </Tag>
-    </HStack>
-  )
-}
+      </Badge>
+    </div>
+  );
+};

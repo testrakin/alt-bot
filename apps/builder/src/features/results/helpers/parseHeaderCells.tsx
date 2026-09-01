@@ -1,18 +1,16 @@
-import { HStack, Text } from '@chakra-ui/react'
-import { ResultHeaderCell } from '@typebot.io/schemas'
-import { HeaderIcon } from '../components/HeaderIcon'
-import { HeaderCell } from '../types'
-import { parseAccessor } from './parseAccessor'
+import type { ResultHeaderCell } from "@typebot.io/results/schemas/results";
+import { HeaderIcon } from "../components/HeaderIcon";
+import type { HeaderCell } from "../types";
 
 export const parseHeaderCells = (
-  resultHeader: ResultHeaderCell[]
+  resultHeader: ResultHeaderCell[],
 ): HeaderCell[] =>
   resultHeader.map((header) => ({
     Header: (
-      <HStack minW="150px" maxW="500px">
+      <div className="flex items-center gap-2 min-w-[150px] max-w-[500px]">
         <HeaderIcon header={header} />
-        <Text>{header.label}</Text>
-      </HStack>
+        <p>{header.label}</p>
+      </div>
     ),
-    accessor: parseAccessor(header.label),
-  }))
+    accessor: header.id,
+  }));

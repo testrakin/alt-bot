@@ -1,20 +1,34 @@
-import { PlaywrightTestConfig } from '@playwright/test'
-import path from 'path'
-import { playwrightBaseConfig } from '@typebot.io/lib/playwright/baseConfig'
+import { resolve } from "node:path";
+import { defineConfig, devices } from "@playwright/test";
 
-const config: PlaywrightTestConfig = {
-  ...playwrightBaseConfig,
-  testDir: path.join(__dirname, 'src'),
-  webServer: process.env.CI
-    ? {
-        ...(playwrightBaseConfig.webServer as { command: string }),
-        port: 3001,
-      }
-    : undefined,
-  use: {
-    ...playwrightBaseConfig.use,
-    baseURL: process.env.NEXT_PUBLIC_VIEWER_URL,
+require("dotenv").config({ path: resolve(__dirname, "../../.env") });
+
+export default defineConfig({
+  timeout: 40 * 1000,
+  expect: {
+    timeout: 5 * 1000,
   },
-}
-
-export default config
+  workers: 6,
+  reporter: [["list"], ["html", { outputFolder: "src/test/reporters" }]],
+  maxFailures: 10,
+  outputDir: "./src/test/results",
+  use: {
+    trace: "on-first-retry",
+    locale: "en-US",
+    baseURL: process.env.NEXT_PUBLIC_VIEWER_URL?.split(",").at(-1),
+  },
+  projects: [
+    {
+      name: "setup db",
+      testMatch: /global\.setup\.ts/,
+    },
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: resolve(__dirname, "src/test/.auth/user.json"),
+      },
+      dependencies: ["setup db"],
+    },
+  ],
+});

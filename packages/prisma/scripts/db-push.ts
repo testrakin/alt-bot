@@ -1,3 +1,3 @@
-import { executePrismaCommand } from './executeCommand'
+import { executePrismaCommand } from "./executeCommand";
 
-executePrismaCommand('prisma db push --skip-generate')
+executePrismaCommand("prisma db push --accept-data-loss");

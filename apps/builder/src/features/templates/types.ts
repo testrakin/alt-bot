@@ -1,9 +1,3 @@
-export type TemplateProps = {
-  name: string
-  emoji: string
-  fileName: string
-  description: string
-  category?: 'marketing' | 'product'
-  isComingSoon?: boolean
-  isNew?: boolean
-}
+import type { Template } from "@typebot.io/templates";
+
+export type TemplateProps = Template;

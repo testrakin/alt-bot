@@ -1,237 +1,358 @@
-import {
-  Flex,
-  HStack,
-  Button,
-  IconButton,
-  Tooltip,
-  Spinner,
-  Text,
-  useColorModeValue,
-} from '@chakra-ui/react'
-import {
-  BuoyIcon,
-  ChevronLeftIcon,
-  RedoIcon,
-  UndoIcon,
-} from '@/components/icons'
-import { useRouter } from 'next/router'
-import React, { useState } from 'react'
-import { isDefined, isNotDefined } from '@typebot.io/lib'
-import { EditableTypebotName } from './EditableTypebotName'
-import { open as openSupportBubble } from '@typebot.io/js'
-import Link from 'next/link'
-import { isCloudProdInstance } from '@/helpers/isCloudProdInstance'
-import { EditableEmojiOrImageIcon } from '@/components/EditableEmojiOrImageIcon'
-import { useUndoShortcut } from '@/hooks/useUndoShortcut'
-import { useDebouncedCallback } from 'use-debounce'
-import { CollaborationMenuButton } from '@/features/collaboration/components/CollaborationMenuButton'
-import { PublishButton } from '@/features/publish/components/PublishButton'
-import { headerHeight } from '../constants'
-import { RightPanel, useEditor } from '../providers/EditorProvider'
-import { useTypebot } from '../providers/TypebotProvider'
+import { useTranslate } from "@tolgee/react";
+import { isDefined, isNotDefined } from "@typebot.io/lib/utils";
+import { Plan } from "@typebot.io/prisma/enum";
+import { Button } from "@typebot.io/ui/components/Button";
+import { Tooltip } from "@typebot.io/ui/components/Tooltip";
+import { useOpenControls } from "@typebot.io/ui/hooks/useOpenControls";
+import { ArrowLeft01Icon } from "@typebot.io/ui/icons/ArrowLeft01Icon";
+import { Copy01Icon } from "@typebot.io/ui/icons/Copy01Icon";
+import { CustomerSupportIcon } from "@typebot.io/ui/icons/CustomerSupportIcon";
+import { LayoutBottomIcon } from "@typebot.io/ui/icons/LayoutBottomIcon";
+import { LoaderCircleIcon } from "@typebot.io/ui/icons/LoaderCircleIcon";
+import { PlayIcon } from "@typebot.io/ui/icons/PlayIcon";
+import { Redo03Icon } from "@typebot.io/ui/icons/Redo03Icon";
+import { Undo03Icon } from "@typebot.io/ui/icons/Undo03Icon";
+import { cn } from "@typebot.io/ui/lib/cn";
+import { useRouter } from "next/router";
+import { useState } from "react";
+import { useDebouncedCallback } from "use-debounce";
+import { ButtonLink } from "@/components/ButtonLink";
+import { EditableEmojiOrImageIcon } from "@/components/EditableEmojiOrImageIcon";
+import { SupportBubble } from "@/components/SupportBubble";
+import { PublishButton } from "@/features/publish/components/PublishButton";
+import { ShareTypebotButton } from "@/features/share/components/ShareTypebotButton";
+import { useWorkspace } from "@/features/workspace/WorkspaceProvider";
+import { isCloudProdInstance } from "@/helpers/isCloudProdInstance";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useRightPanel } from "@/hooks/useRightPanel";
+import { useEditor } from "../providers/EditorProvider";
+import { useTypebot } from "../providers/TypebotProvider";
+import { EditableTypebotName } from "./EditableTypebotName";
+import { GuestTypebotHeader } from "./UnauthenticatedTypebotHeader";
 
 export const TypebotHeader = () => {
-  const router = useRouter()
-  const {
-    typebot,
-    publishedTypebot,
-    updateTypebot,
-    save,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-    isSavingLoading,
-  } = useTypebot()
-  const { setRightPanel, rightPanel, setStartPreviewAtGroup } = useEditor()
-  const [isUndoShortcutTooltipOpen, setUndoShortcutTooltipOpen] =
-    useState(false)
-  const hideUndoShortcutTooltipLater = useDebouncedCallback(() => {
-    setUndoShortcutTooltipOpen(false)
-  }, 1000)
-
-  const handleNameSubmit = (name: string) => updateTypebot({ name })
-
-  const handleChangeIcon = (icon: string) => updateTypebot({ icon })
-
-  const handlePreviewClick = async () => {
-    setStartPreviewAtGroup(undefined)
-    save().then()
-    setRightPanel(RightPanel.PREVIEW)
-  }
-
-  useUndoShortcut(() => {
-    if (!canUndo) return
-    hideUndoShortcutTooltipLater.flush()
-    setUndoShortcutTooltipOpen(true)
-    hideUndoShortcutTooltipLater()
-    undo()
-  })
+  const { typebot, publishedTypebot, currentUserMode } = useTypebot();
+  const { workspace } = useWorkspace();
+  const { isOpen, onOpen } = useOpenControls();
 
   const handleHelpClick = () => {
-    isCloudProdInstance
-      ? openSupportBubble()
-      : window.open('https://docs.typebot.io', '_blank')
-  }
+    isCloudProdInstance() && workspace?.plan && workspace.plan !== Plan.FREE
+      ? onOpen()
+      : window.open(
+          "https://docs.typebot.com/guides/how-to-get-help",
+          "_blank",
+        );
+  };
+
+  if (currentUserMode === "guest") return <GuestTypebotHeader />;
+  return (
+    <div className="flex w-full border-b justify-center items-center relative h-(--header-height) bg-gray-1 shrink-0">
+      {isOpen && <SupportBubble autoShowDelay={0} />}
+      <LeftElements className="absolute left-4" onHelpClick={handleHelpClick} />
+      <TypebotNav
+        className="absolute hidden xl:flex"
+        typebotId={typebot?.id}
+        isResultsDisplayed={isDefined(publishedTypebot)}
+      />
+      <RightElements
+        className="absolute right-10 hidden sm:flex"
+        isResultsDisplayed={isDefined(publishedTypebot)}
+      />
+    </div>
+  );
+};
+
+const LeftElements = ({
+  onHelpClick,
+  className,
+}: {
+  onHelpClick: () => void;
+  className?: string;
+}) => {
+  const { t } = useTranslate();
+  const router = useRouter();
+  const {
+    typebot,
+    updateTypebot,
+    canUndo,
+    canRedo,
+    undo,
+    redo,
+    currentUserMode,
+    isSavingLoading,
+  } = useTypebot();
+
+  const [isUndoExecuted, setIsUndoExecuted] = useState(false);
+  const [isRedoExecuted, setIsRedoExecuted] = useState(false);
+  const undoOpenControls = useOpenControls({
+    onClose: () => {
+      setTimeout(() => {
+        setIsUndoExecuted(false);
+      }, 150);
+    },
+  });
+  const redoOpenControls = useOpenControls({
+    onClose: () => {
+      setTimeout(() => {
+        setIsRedoExecuted(false);
+      }, 150);
+    },
+  });
+
+  const handleNameSubmit = (name: string) =>
+    updateTypebot({ updates: { name } });
+
+  const handleChangeIcon = (icon: string) =>
+    updateTypebot({ updates: { icon } });
+
+  const handleUndoClick = () => {
+    if (!canUndo) return;
+    setIsUndoExecuted(true);
+    undo();
+  };
+
+  const handleRedoClick = () => {
+    if (!canRedo) return;
+    setIsRedoExecuted(true);
+    redo();
+  };
+
+  const debouncedCloseUndoTooltip = useDebouncedCallback(() => {
+    undoOpenControls.onClose();
+  }, 1000);
+  const debouncedCloseRedoTooltip = useDebouncedCallback(() => {
+    redoOpenControls.onClose();
+  }, 1000);
+
+  useKeyboardShortcuts({
+    undo: () => {
+      if (!canUndo) return;
+      undoOpenControls.onOpen();
+      handleUndoClick();
+      debouncedCloseUndoTooltip();
+    },
+    redo: () => {
+      if (!canRedo) return;
+      redoOpenControls.onOpen();
+      handleRedoClick();
+      debouncedCloseRedoTooltip();
+    },
+  });
 
   return (
-    <Flex
-      w="full"
-      borderBottomWidth="1px"
-      justify="center"
-      align="center"
-      h={`${headerHeight}px`}
-      zIndex={100}
-      pos="relative"
-      bgColor={useColorModeValue('white', 'gray.900')}
-      flexShrink={0}
-    >
-      <HStack
-        display={['none', 'flex']}
-        pos={{ base: 'absolute', xl: 'static' }}
-        right={{ base: 280, xl: 0 }}
-      >
-        <Button
-          as={Link}
-          href={`/typebots/${typebot?.id}/edit`}
-          colorScheme={router.pathname.includes('/edit') ? 'blue' : 'gray'}
-          variant={router.pathname.includes('/edit') ? 'outline' : 'ghost'}
-          size="sm"
+    <div className={cn("flex items-center justify-center gap-6", className)}>
+      <div className="flex items-center gap-3">
+        <ButtonLink
+          aria-label="Navigate back"
+          href={{
+            pathname: router.query.parentId
+              ? "/typebots/[typebotId]/edit"
+              : typebot?.folderId
+                ? "/typebots/folders/[id]"
+                : "/typebots",
+            query: {
+              id: typebot?.folderId ?? [],
+              parentId: Array.isArray(router.query.parentId)
+                ? router.query.parentId.slice(0, -1)
+                : [],
+              typebotId: Array.isArray(router.query.parentId)
+                ? [...router.query.parentId].pop()
+                : (router.query.parentId ?? []),
+            },
+          }}
+          size="icon"
+          variant="secondary"
+          className="size-8"
         >
-          Flow
-        </Button>
-        <Button
-          as={Link}
-          href={`/typebots/${typebot?.id}/theme`}
-          colorScheme={router.pathname.endsWith('theme') ? 'blue' : 'gray'}
-          variant={router.pathname.endsWith('theme') ? 'outline' : 'ghost'}
-          size="sm"
-        >
-          Theme
-        </Button>
-        <Button
-          as={Link}
-          href={`/typebots/${typebot?.id}/settings`}
-          colorScheme={router.pathname.endsWith('settings') ? 'blue' : 'gray'}
-          variant={router.pathname.endsWith('settings') ? 'outline' : 'ghost'}
-          size="sm"
-        >
-          Settings
-        </Button>
-        <Button
-          as={Link}
-          href={`/typebots/${typebot?.id}/share`}
-          colorScheme={router.pathname.endsWith('share') ? 'blue' : 'gray'}
-          variant={router.pathname.endsWith('share') ? 'outline' : 'ghost'}
-          size="sm"
-        >
-          Share
-        </Button>
-        {isDefined(publishedTypebot) && (
-          <Button
-            as={Link}
-            href={`/typebots/${typebot?.id}/results`}
-            colorScheme={router.pathname.includes('results') ? 'blue' : 'gray'}
-            variant={router.pathname.includes('results') ? 'outline' : 'ghost'}
-            size="sm"
-          >
-            Results
-          </Button>
-        )}
-      </HStack>
-      <HStack
-        pos="absolute"
-        left="1rem"
-        justify="center"
-        align="center"
-        spacing="6"
-      >
-        <HStack alignItems="center" spacing={3}>
-          <IconButton
-            as={Link}
-            aria-label="Navigate back"
-            icon={<ChevronLeftIcon fontSize={25} />}
-            href={
-              router.query.parentId
-                ? `/typebots/${router.query.parentId}/edit`
-                : typebot?.folderId
-                ? `/typebots/folders/${typebot.folderId}`
-                : '/typebots'
-            }
-            size="sm"
-          />
-          <HStack spacing={1}>
-            {typebot && (
-              <EditableEmojiOrImageIcon
-                uploadFilePath={`typebots/${typebot.id}/icon`}
-                icon={typebot?.icon}
-                onChangeIcon={handleChangeIcon}
-              />
-            )}
-            (
-            <EditableTypebotName
-              key={`typebot-name-${typebot?.name ?? ''}`}
-              defaultName={typebot?.name ?? ''}
-              onNewName={handleNameSubmit}
+          <ArrowLeft01Icon />
+        </ButtonLink>
+        <div className="flex items-center gap-1">
+          {typebot && (
+            <EditableEmojiOrImageIcon
+              uploadFileProps={{
+                workspaceId: typebot.workspaceId,
+                typebotId: typebot.id,
+                fileName: "icon",
+              }}
+              icon={typebot?.icon}
+              onChangeIcon={handleChangeIcon}
+              defaultIcon={<LayoutBottomIcon className="size-full" />}
             />
-            )
-          </HStack>
+          )}
+          <EditableTypebotName
+            key={`typebot-name-${typebot?.name ?? ""}`}
+            defaultName={typebot?.name ?? ""}
+            onNewName={handleNameSubmit}
+          />
+        </div>
 
-          <HStack>
-            <Tooltip
-              label={isUndoShortcutTooltipOpen ? 'Changes reverted!' : 'Undo'}
-              isOpen={isUndoShortcutTooltipOpen ? true : undefined}
-              hasArrow={isUndoShortcutTooltipOpen}
-            >
-              <IconButton
-                display={['none', 'flex']}
-                icon={<UndoIcon />}
-                size="sm"
-                aria-label="Undo"
+        {currentUserMode === "write" && (
+          <div className="flex items-center gap-2">
+            <Tooltip.Root {...undoOpenControls} keepOpenOnClick>
+              <Tooltip.TriggerButton
+                size="icon"
+                variant="secondary"
+                className="size-8 hidden sm:flex"
+                aria-label={t("editor.header.undoButton.label")}
                 onClick={undo}
-                isDisabled={!canUndo}
-              />
-            </Tooltip>
+                disabled={!canUndo}
+              >
+                <Undo03Icon />
+              </Tooltip.TriggerButton>
+              <Tooltip.Popup>
+                {isUndoExecuted
+                  ? t("editor.header.undo.tooltip.label")
+                  : t("editor.header.undoButton.label")}
+              </Tooltip.Popup>
+            </Tooltip.Root>
 
-            <Tooltip label="Redo">
-              <IconButton
-                display={['none', 'flex']}
-                icon={<RedoIcon />}
-                size="sm"
-                aria-label="Redo"
+            <Tooltip.Root {...redoOpenControls} keepOpenOnClick>
+              <Tooltip.TriggerButton
+                size="icon"
+                variant="secondary"
+                className="size-8 hidden sm:flex"
+                aria-label={t("editor.header.redoButton.label")}
                 onClick={redo}
-                isDisabled={!canRedo}
-              />
-            </Tooltip>
-          </HStack>
-          <Button leftIcon={<BuoyIcon />} onClick={handleHelpClick} size="sm">
-            Help
-          </Button>
-        </HStack>
-        {isSavingLoading && (
-          <HStack>
-            <Spinner speed="0.7s" size="sm" color="gray.400" />
-            <Text fontSize="sm" color="gray.400">
-              Saving...
-            </Text>
-          </HStack>
+                disabled={!canRedo}
+              >
+                <Redo03Icon />
+              </Tooltip.TriggerButton>
+              <Tooltip.Popup>
+                {isRedoExecuted
+                  ? t("editor.header.undo.tooltip.label")
+                  : t("editor.header.redoButton.label")}
+              </Tooltip.Popup>
+            </Tooltip.Root>
+          </div>
         )}
-      </HStack>
+        <Button onClick={onHelpClick} variant="secondary" size="sm">
+          <CustomerSupportIcon />
+          <span className="hidden xl:inline">
+            {t("editor.header.helpButton.label")}
+          </span>
+        </Button>
+      </div>
+      {isSavingLoading && (
+        <div className="flex items-center gap-2">
+          <LoaderCircleIcon className="animate-spin" />
+          <p className="text-sm" color="gray.400">
+            {t("editor.header.savingSpinner.label")}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
 
-      <HStack right="40px" pos="absolute" display={['none', 'flex']}>
-        <CollaborationMenuButton isLoading={isNotDefined(typebot)} />
-        {router.pathname.includes('/edit') && isNotDefined(rightPanel) && (
-          <Button
-            colorScheme="gray"
-            onClick={handlePreviewClick}
-            isLoading={isNotDefined(typebot)}
-            size="sm"
-          >
-            Preview
-          </Button>
-        )}
-        <PublishButton size="sm" />
-      </HStack>
-    </Flex>
-  )
-}
+const RightElements = ({
+  isResultsDisplayed,
+  className,
+}: {
+  isResultsDisplayed: boolean;
+  className?: string;
+}) => {
+  const router = useRouter();
+  const { t } = useTranslate();
+  const { typebot, currentUserMode, save, isSavingLoading } = useTypebot();
+  const { setStartPreviewFrom } = useEditor();
+  const [rightPanel, setRightPanel] = useRightPanel();
+
+  const handlePreviewClick = async () => {
+    setStartPreviewFrom(undefined);
+    if ((await save()) === "failed") return;
+    setRightPanel("preview");
+  };
+
+  return (
+    <div className={cn("flex items-center gap-2", className)}>
+      <TypebotNav
+        className="hidden md:flex xl:hidden"
+        typebotId={typebot?.id}
+        isResultsDisplayed={isResultsDisplayed}
+      />
+      <div className="flex relative">
+        <ShareTypebotButton isLoading={isNotDefined(typebot)} />
+      </div>
+      {router.pathname.includes("/edit") && rightPanel !== "preview" && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handlePreviewClick}
+          disabled={isNotDefined(typebot) || isSavingLoading}
+        >
+          <PlayIcon />
+          <span className="hidden xl:inline">
+            {t("editor.header.previewButton.label")}
+          </span>
+        </Button>
+      )}
+      {currentUserMode === "guest" && (
+        <ButtonLink
+          href={`/typebots/${typebot?.id}/duplicate`}
+          disabled={isNotDefined(typebot)}
+          variant="secondary"
+          size="sm"
+        >
+          <Copy01Icon />
+          Duplicate
+        </ButtonLink>
+      )}
+      {currentUserMode === "write" && <PublishButton size="sm" />}
+    </div>
+  );
+};
+
+const TypebotNav = ({
+  typebotId,
+  isResultsDisplayed,
+  className,
+}: {
+  typebotId?: string;
+  isResultsDisplayed: boolean;
+  className?: string;
+}) => {
+  const { t } = useTranslate();
+  const router = useRouter();
+
+  return (
+    <div className={cn("flex items-center gap-2", className)}>
+      <ButtonLink
+        href={`/typebots/${typebotId}/edit`}
+        variant={router.pathname.includes("/edit") ? "outline" : "ghost"}
+        size="sm"
+      >
+        {t("editor.header.flowButton.label")}
+      </ButtonLink>
+      <ButtonLink
+        href={`/typebots/${typebotId}/theme`}
+        variant={router.pathname.endsWith("theme") ? "outline" : "ghost"}
+        size="sm"
+      >
+        {t("editor.header.themeButton.label")}
+      </ButtonLink>
+      <ButtonLink
+        href={`/typebots/${typebotId}/settings`}
+        variant={router.pathname.endsWith("settings") ? "outline" : "ghost"}
+        size="sm"
+      >
+        {t("editor.header.settingsButton.label")}
+      </ButtonLink>
+      <ButtonLink
+        href={`/typebots/${typebotId}/share`}
+        variant={router.pathname.endsWith("share") ? "outline" : "ghost"}
+        size="sm"
+      >
+        {t("share.button.label")}
+      </ButtonLink>
+      {isResultsDisplayed && (
+        <ButtonLink
+          href={`/typebots/${typebotId}/results`}
+          variant={router.pathname.includes("results") ? "outline" : "ghost"}
+          size="sm"
+        >
+          {t("editor.header.resultsButton.label")}
+        </ButtonLink>
+      )}
+    </div>
+  );
+};

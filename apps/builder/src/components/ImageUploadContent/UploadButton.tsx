@@ -1,64 +1,60 @@
-import { useToast } from '@/hooks/useToast'
-import { Button, ButtonProps, chakra } from '@chakra-ui/react'
-import { ChangeEvent, useState } from 'react'
-import { uploadFiles } from '@typebot.io/lib'
-import { compressFile } from '@/helpers/compressFile'
+import { uploadFileWithPresignedPostData } from "@typebot.io/lib/s3/uploadFileWithPresignedPostData";
+import type { ButtonProps } from "@typebot.io/ui/components/Button";
+import { UploadButton as UploadButtonPrimitive } from "@typebot.io/ui/components/UploadButton";
+import type { FilePathUploadProps } from "@/features/upload/api/generateUploadUrl";
+import { type CompressPreset, compressFile } from "@/helpers/compressFile";
+import { orpc } from "@/lib/queryClient";
+import { toast } from "@/lib/toast";
 
 type UploadButtonProps = {
-  fileType: 'image' | 'audio'
-  filePath: string
-  includeFileName?: boolean
-  onFileUploaded: (url: string) => void
-} & ButtonProps
+  fileType: "image" | "audio";
+  filePathProps: FilePathUploadProps;
+  onFileUploaded: (url: string) => void;
+  compressPreset?: CompressPreset;
+} & ButtonProps;
 
 export const UploadButton = ({
   fileType,
-  filePath,
-  includeFileName,
+  filePathProps,
   onFileUploaded,
-  ...props
+  compressPreset,
+  children,
+  variant,
+  size = "sm",
 }: UploadButtonProps) => {
-  const [isUploading, setIsUploading] = useState(false)
-  const { showToast } = useToast()
-
-  const handleInputChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    if (!e.target?.files) return
-    setIsUploading(true)
-    const file = e.target.files[0] as File | undefined
-    if (!file)
-      return showToast({ description: 'Could not read file.', status: 'error' })
-    const urls = await uploadFiles({
-      files: [
-        {
-          file: await compressFile(file),
-          path: `public/${filePath}${includeFileName ? `/${file.name}` : ''}`,
-        },
-      ],
-    })
-    if (urls.length && urls[0]) onFileUploaded(urls[0] + '?v=' + Date.now())
-    setIsUploading(false)
-  }
+  const handleFileUploadRequest = async (rawFile: File) => {
+    const file = await compressFile(rawFile, compressPreset);
+    const data = await orpc.generateUploadUrl.call({
+      filePathProps,
+      fileType: file.type,
+    });
+    const upload = await uploadFileWithPresignedPostData({
+      presignedUrl: data.presignedUrl,
+      formData: data.formData,
+      file,
+    });
+    if (!upload.ok) {
+      toast({
+        description: "Error while trying to upload the file.",
+      });
+      return null;
+    }
+    return `${data.fileUrl}?v=${Date.now()}`;
+  };
 
   return (
-    <>
-      <chakra.input
-        data-testid="file-upload-input"
-        type="file"
-        id="file-input"
-        display="none"
-        onChange={handleInputChange}
-        accept={fileType === 'image' ? '.jpg, .jpeg, .png, .gif' : '.mp3, .wav'}
-      />
-      <Button
-        as="label"
-        size="sm"
-        htmlFor="file-input"
-        cursor="pointer"
-        isLoading={isUploading}
-        {...props}
-      >
-        {props.children}
-      </Button>
-    </>
-  )
-}
+    <UploadButtonPrimitive
+      accept={
+        fileType === "image"
+          ? "image/avif, image/png, image/jpeg, image/gif, image/webp, image/bmp, image/tiff"
+          : "audio/*"
+      }
+      variant={variant}
+      size={size}
+      onFileUploadRequest={handleFileUploadRequest}
+      onValueCommit={onFileUploaded}
+    >
+      {children}
+    </UploadButtonPrimitive>
+  );
+};

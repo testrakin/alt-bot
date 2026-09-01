@@ -1,170 +1,145 @@
-import {
-  Box,
-  Button,
-  Fade,
-  Flex,
-  IconButton,
-  SlideFade,
-  Stack,
-} from '@chakra-ui/react'
-import { TrashIcon, PlusIcon } from '@/components/icons'
-import { createId } from '@paralleldrive/cuid2'
-import React, { useState } from 'react'
+import { createId } from "@paralleldrive/cuid2";
+import { Button } from "@typebot.io/ui/components/Button";
+import { PlusSignIcon } from "@typebot.io/ui/icons/PlusSignIcon";
+import { TrashIcon } from "@typebot.io/ui/icons/TrashIcon";
+import { cx } from "@typebot.io/ui/lib/cva";
+import { type JSX, useEffect, useState } from "react";
 
-type ItemWithId<T> = T & { id: string }
+const defaultItem = {
+  id: createId(),
+};
 
 export type TableListItemProps<T> = {
-  item: T
-  onItemChange: (item: T) => void
-}
+  item: T;
+  onItemChange: (item: T) => void;
+};
 
-type Props<T> = {
-  initialItems: ItemWithId<T>[]
-  isOrdered?: boolean
-  addLabel?: string
-  Item: (props: TableListItemProps<T>) => JSX.Element
-  ComponentBetweenItems?: (props: unknown) => JSX.Element
-  onItemsChange: (items: ItemWithId<T>[]) => void
-}
+type Props<T extends object> = {
+  initialItems?: T[];
+  isOrdered?: boolean;
+  addLabel?: string;
+  newItemDefaultProps?: Partial<T>;
+  hasDefaultItem?: boolean;
+  ComponentBetweenItems?: (props: unknown) => JSX.Element;
+  onItemsChange: (items: T[]) => void;
+  children: (props: TableListItemProps<T>) => JSX.Element;
+};
 
-export const TableList = <T,>({
+export const TableList = <T extends object>({
   initialItems,
   isOrdered,
-  addLabel = 'Add',
-  Item,
+  addLabel = "Add",
+  newItemDefaultProps,
+  hasDefaultItem,
+  children,
   ComponentBetweenItems,
   onItemsChange,
 }: Props<T>) => {
-  const [items, setItems] = useState(initialItems)
-  const [showDeleteIndex, setShowDeleteIndex] = useState<number | null>(null)
+  const [items, setItems] = useState(
+    addIdsIfMissing(initialItems) ??
+      (hasDefaultItem ? ([defaultItem] as T[]) : []),
+  );
+
+  useEffect(() => {
+    if (items.length && initialItems && initialItems?.length === 0)
+      setItems(initialItems);
+  }, [initialItems, items.length]);
 
   const createItem = () => {
-    const id = createId()
-    const newItem = { id } as ItemWithId<T>
-    setItems([...items, newItem])
-    onItemsChange([...items, newItem])
-  }
+    const id = createId();
+    const newItem = { id, ...newItemDefaultProps } as T;
+    setItems([...items, newItem]);
+    onItemsChange([...items, newItem]);
+  };
 
-  const insertItem = (itemIndex: number) => () => {
-    const id = createId()
-    const newItem = { id } as ItemWithId<T>
-    const newItems = [...items]
-    newItems.splice(itemIndex + 1, 0, newItem)
-    setItems(newItems)
-    onItemsChange(newItems)
-  }
+  const insertItemAt = (insertIndex: number) => () => {
+    const id = createId();
+    const newItem = { id } as T;
+    const newItems = [...items];
+    const clampedIndex = Math.min(Math.max(insertIndex, 0), newItems.length);
+    newItems.splice(clampedIndex, 0, newItem);
+    setItems(newItems);
+    onItemsChange(newItems);
+  };
 
   const updateItem = (itemIndex: number, updates: Partial<T>) => {
     const newItems = items.map((item, idx) =>
-      idx === itemIndex ? { ...item, ...updates } : item
-    )
-    setItems(newItems)
-    onItemsChange(newItems)
-  }
+      idx === itemIndex ? { ...item, ...updates } : item,
+    );
+    setItems(newItems);
+    onItemsChange(newItems);
+  };
 
   const deleteItem = (itemIndex: number) => () => {
-    const newItems = [...items]
-    newItems.splice(itemIndex, 1)
-    setItems([...newItems])
-    onItemsChange([...newItems])
-  }
-
-  const handleMouseEnter = (itemIndex: number) => () =>
-    setShowDeleteIndex(itemIndex)
+    const newItems = [...items];
+    newItems.splice(itemIndex, 1);
+    setItems([...newItems]);
+    onItemsChange([...newItems]);
+  };
 
   const handleCellChange = (itemIndex: number) => (item: T) =>
-    updateItem(itemIndex, item)
-
-  const handleMouseLeave = () => setShowDeleteIndex(null)
+    updateItem(itemIndex, item);
 
   return (
-    <Stack spacing={0}>
+    <div className="flex flex-col gap-0">
       {items.map((item, itemIndex) => (
-        <Box key={item.id}>
+        <div key={"id" in item ? (item.id as string) : itemIndex}>
           {itemIndex !== 0 && ComponentBetweenItems && (
             <ComponentBetweenItems />
           )}
-          <Flex
-            pos="relative"
-            onMouseEnter={handleMouseEnter(itemIndex)}
-            onMouseLeave={handleMouseLeave}
-            mt={itemIndex !== 0 && ComponentBetweenItems ? 4 : 0}
-            justifyContent="center"
-            pb="4"
+          <div
+            className={cx(
+              "group/item flex relative justify-center pb-4",
+              itemIndex !== 0 && ComponentBetweenItems ? "mt-4" : "mt-0",
+            )}
           >
-            <Item item={item} onItemChange={handleCellChange(itemIndex)} />
-            <Fade
-              in={showDeleteIndex === itemIndex}
-              style={{
-                position: 'absolute',
-                left: '-15px',
-                top: '-15px',
-              }}
-              unmountOnExit
+            {children({ item, onItemChange: handleCellChange(itemIndex) })}
+            <Button
+              size="icon"
+              aria-label="Remove cell"
+              onClick={deleteItem(itemIndex)}
+              variant="secondary"
+              className="shadow-md size-6 absolute left-[-8px] top-[-8px] invisible opacity-0 transition-opacity group-hover/item:visible group-hover/item:opacity-100 group-focus-within/item:visible group-focus-within/item:opacity-100"
             >
-              <IconButton
-                icon={<TrashIcon />}
-                aria-label="Remove cell"
-                onClick={deleteItem(itemIndex)}
-                size="sm"
-                shadow="md"
-              />
-            </Fade>
+              <TrashIcon />
+            </Button>
             {isOrdered && (
               <>
-                {itemIndex === 0 && (
-                  <SlideFade
-                    offsetY="-5px"
-                    in={showDeleteIndex === itemIndex}
-                    style={{
-                      position: 'absolute',
-                      top: '-15px',
-                    }}
-                    unmountOnExit
-                  >
-                    <IconButton
-                      aria-label={addLabel}
-                      icon={<PlusIcon />}
-                      size="xs"
-                      shadow="md"
-                      colorScheme="blue"
-                      onClick={insertItem(itemIndex - 1)}
-                    />
-                  </SlideFade>
-                )}
-                <SlideFade
-                  offsetY="5px"
-                  in={showDeleteIndex === itemIndex}
-                  style={{
-                    position: 'absolute',
-                    bottom: '5px',
-                  }}
-                  unmountOnExit
+                <Button
+                  size="icon"
+                  aria-label={addLabel}
+                  onClick={insertItemAt(itemIndex)}
+                  variant="secondary"
+                  className="shadow-md size-6 absolute top-[-10px] invisible opacity-0 transition-opacity group-hover/item:visible group-hover/item:opacity-100 group-focus-within/item:visible group-focus-within/item:opacity-100"
                 >
-                  <IconButton
-                    aria-label={addLabel}
-                    icon={<PlusIcon />}
-                    size="xs"
-                    shadow="md"
-                    colorScheme="blue"
-                    onClick={insertItem(itemIndex)}
-                  />
-                </SlideFade>
+                  <PlusSignIcon />
+                </Button>
+                <Button
+                  size="icon"
+                  aria-label={addLabel}
+                  onClick={insertItemAt(itemIndex + 1)}
+                  variant="secondary"
+                  className="shadow-md size-6 absolute bottom-2 invisible opacity-0 transition-opacity group-hover/item:visible group-hover/item:opacity-100 group-focus-within/item:visible group-focus-within/item:opacity-100"
+                >
+                  <PlusSignIcon />
+                </Button>
               </>
             )}
-          </Flex>
-        </Box>
+          </div>
+        </div>
       ))}
-      {!isOrdered && (
-        <Button
-          leftIcon={<PlusIcon />}
-          onClick={createItem}
-          flexShrink={0}
-          colorScheme="blue"
-        >
+      {(!isOrdered || items.length === 0) && (
+        <Button onClick={createItem} className="shrink-0" variant="secondary">
+          <PlusSignIcon />
           {addLabel}
         </Button>
       )}
-    </Stack>
-  )
-}
+    </div>
+  );
+};
+
+const addIdsIfMissing = <T,>(items?: T[]): T[] | undefined =>
+  items?.map((item) => ({
+    id: createId(),
+    ...item,
+  }));

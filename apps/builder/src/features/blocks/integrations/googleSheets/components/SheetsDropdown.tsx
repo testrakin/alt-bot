@@ -1,14 +1,14 @@
-import { MoreInfoTooltip } from '@/components/MoreInfoTooltip'
-import { Select } from '@/components/inputs/Select'
-import { HStack, Input } from '@chakra-ui/react'
-import { Sheet } from '../types'
+import { Input } from "@typebot.io/ui/components/Input";
+import { MoreInfoTooltip } from "@typebot.io/ui/components/MoreInfoTooltip";
+import { BasicSelect } from "@/components/inputs/BasicSelect";
+import type { Sheet } from "../types";
 
 type Props = {
-  sheets: Sheet[]
-  isLoading: boolean
-  sheetId?: string
-  onSelectSheetId: (id: string | undefined) => void
-}
+  sheets: Sheet[];
+  isLoading: boolean;
+  sheetId?: string;
+  onSelectSheetId: (id: string | undefined) => void;
+};
 
 export const SheetsDropdown = ({
   sheets,
@@ -16,23 +16,24 @@ export const SheetsDropdown = ({
   sheetId,
   onSelectSheetId,
 }: Props) => {
-  if (isLoading) return <Input value="Loading..." isDisabled />
+  if (isLoading) return <Input value="Loading..." disabled />;
   if (!sheets || sheets.length === 0)
     return (
-      <HStack>
-        <Input value="No sheets found" isDisabled />
+      <div className="flex items-center gap-2">
+        <Input value="No sheets found" disabled />
         <MoreInfoTooltip>
           Make sure your spreadsheet contains at least a sheet with a header
           row. Also make sure your header row does not contain duplicates.
         </MoreInfoTooltip>
-      </HStack>
-    )
+      </div>
+    );
   return (
-    <Select
-      selectedItem={sheetId}
+    <BasicSelect
+      className="w-full"
+      value={sheetId}
       items={(sheets ?? []).map((s) => ({ label: s.name, value: s.id }))}
-      onSelect={onSelectSheetId}
-      placeholder={'Select the sheet'}
+      onChange={onSelectSheetId}
+      placeholder={"Select the sheet"}
     />
-  )
-}
+  );
+};

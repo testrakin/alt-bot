@@ -1,4 +1,4 @@
-import { JSX } from 'solid-js/jsx-runtime'
+import type { JSX } from "solid-js/jsx-runtime";
 
 export const CheckIcon = (props: JSX.SvgSVGAttributes<SVGSVGElement>) => (
   <svg
@@ -11,6 +11,7 @@ export const CheckIcon = (props: JSX.SvgSVGAttributes<SVGSVGElement>) => (
     stroke-linejoin="round"
     {...props}
   >
+    <title>Check Icon</title>
     <polyline points="20 6 9 17 4 12" />
   </svg>
-)
+);

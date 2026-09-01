@@ -1,47 +1,58 @@
-import type { GoogleAnalyticsOptions } from '@typebot.io/schemas'
+import type { GoogleAnalyticsBlock } from "@typebot.io/blocks-integrations/googleAnalytics/schema";
+import { isDefined, isEmpty } from "@typebot.io/lib/utils";
 
-declare const gtag: (
-  type: string,
-  action: string | undefined,
-  options: {
-    event_category: string | undefined
-    event_label: string | undefined
-    value: number | undefined
-    send_to: string | undefined
-  }
-) => void
+declare const window: {
+  gtag?: (
+    type: string,
+    action: string | undefined,
+    options: {
+      event_category: string | undefined;
+      event_label: string | undefined;
+      value: number | undefined;
+      send_to: string | undefined;
+    },
+  ) => void;
+};
 
-const initGoogleAnalytics = (id: string): Promise<void> =>
-  new Promise((resolve) => {
-    const existingScript = document.getElementById('gtag')
+export const initGoogleAnalytics = (id: string): Promise<void> => {
+  if (isDefined(window.gtag)) return Promise.resolve();
+  return new Promise((resolve) => {
+    const existingScript = document.getElementById("gtag");
     if (!existingScript) {
-      const script = document.createElement('script')
-      script.src = `https://www.googletagmanager.com/gtag/js?id=${id}`
-      script.id = 'gtag'
-      const initScript = document.createElement('script')
+      const script = document.createElement("script");
+      script.src = `https://www.googletagmanager.com/gtag/js?id=${id}`;
+      script.id = "gtag";
+      const initScript = document.createElement("script");
       initScript.innerHTML = `window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-    
+
       gtag('config', '${id}');
-      `
-      document.body.appendChild(script)
-      document.body.appendChild(initScript)
+      `;
+      document.body.appendChild(script);
+      document.body.appendChild(initScript);
       script.onload = () => {
-        resolve()
-      }
+        resolve();
+      };
+      script.onerror = () => {
+        console.error("Failed to load Google Analytics script");
+        resolve();
+      };
     }
-    if (existingScript) resolve()
-  })
+    if (existingScript) resolve();
+  });
+};
 
-export const sendGaEvent = (options: GoogleAnalyticsOptions) => {
-  if (!options) return
-  gtag('event', options.action, {
-    event_category: options.category,
-    event_label: options.label,
-    value: options.value,
-    send_to: options.sendTo,
-  })
-}
-
-export default initGoogleAnalytics
+export const sendGaEvent = (options: GoogleAnalyticsBlock["options"]) => {
+  if (!options) return;
+  if (!window.gtag) {
+    console.error("Google Analytics was not properly initialized");
+    return;
+  }
+  window.gtag("event", options.action, {
+    event_category: isEmpty(options.category) ? undefined : options.category,
+    event_label: isEmpty(options.label) ? undefined : options.label,
+    value: options.value as number,
+    send_to: isEmpty(options.sendTo) ? undefined : options.sendTo,
+  });
+};

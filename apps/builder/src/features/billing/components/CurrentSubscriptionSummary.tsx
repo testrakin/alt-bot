@@ -1,41 +1,61 @@
-import { Text, HStack, Stack, Heading } from '@chakra-ui/react'
-import { Plan } from '@typebot.io/prisma'
-import React from 'react'
-import { PlanTag } from './PlanTag'
-import { BillingPortalButton } from './BillingPortalButton'
-import { trpc } from '@/lib/trpc'
-import { Workspace } from '@typebot.io/schemas'
-import { useScopedI18n } from '@/locales'
+import { useQuery } from "@tanstack/react-query";
+import { useTranslate } from "@tolgee/react";
+import { Alert } from "@typebot.io/ui/components/Alert";
+import { TriangleAlertIcon } from "@typebot.io/ui/icons/TriangleAlertIcon";
+import type { Workspace } from "@typebot.io/workspaces/schemas";
+import { isSelfHostedInstance } from "@/helpers/isSelfHostedInstance";
+import { orpc } from "@/lib/queryClient";
+import { BillingPortalButton } from "./BillingPortalButton";
+import { PlanBadge } from "./PlanTag";
 
 type Props = {
-  workspace: Pick<Workspace, 'id' | 'plan' | 'stripeId'>
-}
+  workspace: Pick<Workspace, "id" | "plan" | "stripeId">;
+};
 
 export const CurrentSubscriptionSummary = ({ workspace }: Props) => {
-  const scopedT = useScopedI18n('billing.currentSubscription')
+  const { t } = useTranslate();
 
-  const { data } = trpc.billing.getSubscription.useQuery({
-    workspaceId: workspace.id,
-  })
+  const { data } = useQuery(
+    orpc.billing.getSubscription.queryOptions({
+      input: { workspaceId: workspace.id },
+      enabled: !isSelfHostedInstance(),
+    }),
+  );
 
-  const isSubscribed =
-    (workspace.plan === Plan.STARTER || workspace.plan === Plan.PRO) &&
-    workspace.stripeId
+  const hasStripeCustomer = workspace.stripeId;
 
   return (
-    <Stack spacing="4">
-      <Heading fontSize="3xl">{scopedT('heading')}</Heading>
-      <HStack data-testid="current-subscription">
-        <Text>{scopedT('subheading')} </Text>
-        <PlanTag plan={workspace.plan} />
+    <div className="flex flex-col gap-4">
+      <h2 className="text-3xl">{t("billing.currentSubscription.heading")}</h2>
+      <div
+        className="flex items-center gap-2"
+        data-testid="current-subscription"
+      >
+        <p>{t("billing.currentSubscription.subheading")} </p>
+        <PlanBadge plan={workspace.plan} />
         {data?.subscription?.cancelDate && (
-          <Text fontSize="sm">
-            (Will be cancelled on {data.subscription.cancelDate.toDateString()})
-          </Text>
+          <p className="text-sm">
+            ({t("billing.currentSubscription.cancelDate")}{" "}
+            {data.subscription.cancelDate.toDateString()})
+          </p>
         )}
-      </HStack>
-
-      {isSubscribed && <BillingPortalButton workspaceId={workspace.id} />}
-    </Stack>
-  )
-}
+      </div>
+      {data?.subscription?.status === "past_due" && (
+        <Alert.Root variant="error">
+          <TriangleAlertIcon />
+          <Alert.Description>
+            {t("billing.currentSubscription.pastDueAlert")}
+          </Alert.Description>
+        </Alert.Root>
+      )}
+      {hasStripeCustomer && (
+        <BillingPortalButton
+          workspaceId={workspace.id}
+          variant={
+            data?.subscription?.status === "past_due" ? "default" : "secondary"
+          }
+        />
+      )}
+    </div>
+  );
+};

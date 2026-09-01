@@ -1,132 +1,126 @@
-import {
-  Button,
-  IconButton,
-  Menu,
-  MenuButton,
-  MenuButtonProps,
-  MenuItem,
-  MenuList,
-  Stack,
-  Text,
-  useDisclosure,
-} from '@chakra-ui/react'
-import { ChevronLeftIcon, PlusIcon, TrashIcon } from '@/components/icons'
-import React, { useState } from 'react'
-import { CustomDomainModal } from './CustomDomainModal'
-import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
-import { useToast } from '@/hooks/useToast'
-import { useCustomDomains } from '../hooks/useCustomDomains'
-import { deleteCustomDomainQuery } from '../queries/deleteCustomDomainQuery'
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslate } from "@tolgee/react";
+import { Button } from "@typebot.io/ui/components/Button";
+import { Menu } from "@typebot.io/ui/components/Menu";
+import { Tooltip } from "@typebot.io/ui/components/Tooltip";
+import { useOpenControls } from "@typebot.io/ui/hooks/useOpenControls";
+import { ArrowDown01Icon } from "@typebot.io/ui/icons/ArrowDown01Icon";
+import { PlusSignIcon } from "@typebot.io/ui/icons/PlusSignIcon";
+import { TrashIcon } from "@typebot.io/ui/icons/TrashIcon";
+import type React from "react";
+import { useState } from "react";
+import { useWorkspace } from "@/features/workspace/WorkspaceProvider";
+import { orpc } from "@/lib/queryClient";
+import { CreateCustomDomainDialog } from "./CreateCustomDomainDialog";
 
-type Props = Omit<MenuButtonProps, 'type'> & {
-  currentCustomDomain?: string
-  onCustomDomainSelect: (domain: string) => void
-}
+type Props = {
+  currentCustomDomain?: string;
+  onCustomDomainSelect: (domain: string) => void;
+};
 
 export const CustomDomainsDropdown = ({
   currentCustomDomain,
   onCustomDomainSelect,
-  ...props
 }: Props) => {
-  const [isDeleting, setIsDeleting] = useState('')
-  const { isOpen, onOpen, onClose } = useDisclosure()
-  const { workspace } = useWorkspace()
-  const { showToast } = useToast()
-  const { customDomains, mutate } = useCustomDomains({
-    workspaceId: workspace?.id,
-    onError: (error) =>
-      showToast({ title: error.name, description: error.message }),
-  })
+  const { t } = useTranslate();
+  const [isDeleting, setIsDeleting] = useState("");
+  const { isOpen, onOpen, onClose } = useOpenControls();
+  const { workspace, currentUserMode } = useWorkspace();
+  const { data, refetch } = useQuery(
+    orpc.customDomains.listCustomDomains.queryOptions({
+      input: {
+        workspaceId: workspace?.id as string,
+      },
+      enabled: !!workspace?.id && currentUserMode !== "guest",
+    }),
+  );
+  const { mutate } = useMutation(
+    orpc.customDomains.deleteCustomDomain.mutationOptions({
+      onMutate: ({ name }) => {
+        setIsDeleting(name);
+      },
+      onSettled: () => {
+        setIsDeleting("");
+      },
+      onSuccess: () => {
+        refetch();
+      },
+    }),
+  );
 
   const handleMenuItemClick = (customDomain: string) => () =>
-    onCustomDomainSelect(customDomain)
+    onCustomDomainSelect(customDomain);
 
   const handleDeleteDomainClick =
     (domainName: string) => async (e: React.MouseEvent) => {
-      if (!workspace) return
-      e.stopPropagation()
-      setIsDeleting(domainName)
-      const { error } = await deleteCustomDomainQuery(workspace.id, domainName)
-      setIsDeleting('')
-      if (error)
-        return showToast({ title: error.name, description: error.message })
+      if (!workspace) return;
+      e.stopPropagation();
       mutate({
-        customDomains: (customDomains ?? []).filter(
-          (cd) => cd.name !== domainName
-        ),
-      })
-    }
+        name: domainName,
+        workspaceId: workspace.id,
+      });
+    };
 
-  const handleNewDomain = (domain: string) => {
-    if (!workspace) return
-    mutate({
-      customDomains: [
-        ...(customDomains ?? []),
-        { name: domain, workspaceId: workspace?.id },
-      ],
-    })
-    handleMenuItemClick(domain)()
-  }
+  const handleNewDomain = (name: string) => {
+    onCustomDomainSelect(name);
+  };
+
+  const isDisabled = currentUserMode !== "write" && !data?.customDomains.length;
 
   return (
-    <Menu isLazy placement="bottom-start" matchWidth>
+    <Menu.Root>
       {workspace?.id && (
-        <CustomDomainModal
+        <CreateCustomDomainDialog
           workspaceId={workspace.id}
           isOpen={isOpen}
           onClose={onClose}
           onNewDomain={handleNewDomain}
         />
       )}
-      <MenuButton
-        as={Button}
-        rightIcon={<ChevronLeftIcon transform={'rotate(-90deg)'} />}
-        colorScheme="gray"
-        justifyContent="space-between"
-        textAlign="left"
-        {...props}
-      >
-        <Text noOfLines={1} overflowY="visible" h="20px">
-          {currentCustomDomain ?? 'Add my domain'}
-        </Text>
-      </MenuButton>
-      <MenuList maxW="500px" shadow="lg">
-        <Stack maxH={'35vh'} overflowY="scroll" spacing="0">
-          {(customDomains ?? []).map((customDomain) => (
-            <Button
-              role="menuitem"
-              minH="40px"
+      <Tooltip.Root disabled={!isDisabled}>
+        <Tooltip.Trigger>
+          <Menu.TriggerButton
+            variant="secondary"
+            className="justify-between"
+            disabled={isDisabled}
+          >
+            {currentCustomDomain ?? t("customDomain.add")}
+            <ArrowDown01Icon />
+          </Menu.TriggerButton>
+        </Tooltip.Trigger>
+        <Tooltip.Popup>
+          Only workspace owners can add custom domains
+        </Tooltip.Popup>
+      </Tooltip.Root>
+      <Menu.Popup>
+        <div className="flex flex-col max-h-[35vh] overflow-y-auto gap-0">
+          {(data?.customDomains ?? []).map((customDomain) => (
+            <Menu.Item
               key={customDomain.name}
               onClick={handleMenuItemClick(customDomain.name)}
-              fontSize="16px"
-              fontWeight="normal"
-              rounded="none"
-              colorScheme="gray"
-              variant="ghost"
-              justifyContent="space-between"
+              className="justify-between"
             >
               {customDomain.name}
-              <IconButton
-                icon={<TrashIcon />}
-                aria-label="Remove domain"
-                size="xs"
-                onClick={handleDeleteDomainClick(customDomain.name)}
-                isLoading={isDeleting === customDomain.name}
-              />
-            </Button>
+              {currentUserMode === "write" && (
+                <Button
+                  aria-label={t("customDomain.remove")}
+                  size="icon"
+                  onClick={handleDeleteDomainClick(customDomain.name)}
+                  disabled={isDeleting === customDomain.name}
+                >
+                  <TrashIcon />
+                </Button>
+              )}
+            </Menu.Item>
           ))}
-          <MenuItem
-            maxW="500px"
-            overflow="hidden"
-            whiteSpace="nowrap"
-            textOverflow="ellipsis"
-            icon={<PlusIcon />}
-            onClick={onOpen}
-          >
-            Connect new
-          </MenuItem>
-        </Stack>
-      </MenuList>
-    </Menu>
-  )
-}
+          {currentUserMode === "write" && (
+            <Menu.Item onClick={onOpen}>
+              <PlusSignIcon />
+              {t("connectNew")}
+            </Menu.Item>
+          )}
+        </div>
+      </Menu.Popup>
+    </Menu.Root>
+  );
+};

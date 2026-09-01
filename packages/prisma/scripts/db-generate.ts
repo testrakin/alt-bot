@@ -1,3 +1,10 @@
-import { executePrismaCommand } from './executeCommand'
+import { executePrismaCommand } from "./executeCommand";
 
-executePrismaCommand('prisma generate', { force: true })
+const run = async () => {
+  await executePrismaCommand("prisma generate --no-hints", { force: true });
+};
+
+run().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

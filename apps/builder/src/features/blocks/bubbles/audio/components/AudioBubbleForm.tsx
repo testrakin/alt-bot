@@ -1,68 +1,92 @@
-import { Button, Flex, HStack, Stack, Text } from '@chakra-ui/react'
-import { AudioBubbleContent } from '@typebot.io/schemas'
-import { TextInput } from '@/components/inputs'
-import { useState } from 'react'
-import { UploadButton } from '@/components/ImageUploadContent/UploadButton'
+import { useTranslate } from "@tolgee/react";
+import { defaultAudioBubbleContent } from "@typebot.io/blocks-bubbles/audio/constants";
+import type { AudioBubbleBlock } from "@typebot.io/blocks-bubbles/audio/schema";
+import { Button } from "@typebot.io/ui/components/Button";
+import { Field } from "@typebot.io/ui/components/Field";
+import { Switch } from "@typebot.io/ui/components/Switch";
+import { useState } from "react";
+import { UploadButton } from "@/components/ImageUploadContent/UploadButton";
+import { DebouncedTextInputWithVariablesButton } from "@/components/inputs/DebouncedTextInput";
+import type { FilePathUploadProps } from "@/features/upload/api/generateUploadUrl";
 
 type Props = {
-  fileUploadPath: string
-  content: AudioBubbleContent
-  onSubmit: (content: AudioBubbleContent) => void
-}
+  uploadFileProps: FilePathUploadProps;
+  content: AudioBubbleBlock["content"];
+  onContentChange: (content: AudioBubbleBlock["content"]) => void;
+};
 
 export const AudioBubbleForm = ({
-  fileUploadPath,
+  uploadFileProps,
   content,
-  onSubmit,
+  onContentChange,
 }: Props) => {
-  const [currentTab, setCurrentTab] = useState<'link' | 'upload'>('link')
+  const { t } = useTranslate();
+  const [currentTab, setCurrentTab] = useState<"link" | "upload">("link");
 
-  const submit = (url: string) => onSubmit({ url })
+  const updateUrl = (url: string) => onContentChange({ ...content, url });
+
+  const updateAutoPlay = (isAutoplayEnabled: boolean) =>
+    onContentChange({ ...content, isAutoplayEnabled });
 
   return (
-    <Stack>
-      <HStack>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
         <Button
-          variant={currentTab === 'upload' ? 'solid' : 'ghost'}
-          onClick={() => setCurrentTab('upload')}
+          variant={currentTab === "upload" ? "outline" : "ghost"}
+          onClick={() => setCurrentTab("upload")}
           size="sm"
         >
-          Upload
+          {t("editor.blocks.bubbles.audio.settings.upload.label")}
         </Button>
         <Button
-          variant={currentTab === 'link' ? 'solid' : 'ghost'}
-          onClick={() => setCurrentTab('link')}
+          variant={currentTab === "link" ? "outline" : "ghost"}
+          onClick={() => setCurrentTab("link")}
           size="sm"
         >
-          Embed link
+          {t("editor.blocks.bubbles.audio.settings.embedLink.label")}
         </Button>
-      </HStack>
-      <Stack p="2">
-        {currentTab === 'upload' && (
-          <Flex justify="center" py="2">
-            <UploadButton
-              fileType="audio"
-              filePath={fileUploadPath}
-              onFileUploaded={submit}
-              colorScheme="blue"
-            >
-              Choose a file
-            </UploadButton>
-          </Flex>
-        )}
-        {currentTab === 'link' && (
-          <>
-            <TextInput
-              placeholder="Paste the audio file link..."
-              defaultValue={content.url ?? ''}
-              onChange={submit}
-            />
-            <Text fontSize="sm" color="gray.400" textAlign="center">
-              Works with .MP3s and .WAVs
-            </Text>
-          </>
-        )}
-      </Stack>
-    </Stack>
-  )
-}
+      </div>
+      <div className="flex flex-col p-2 gap-4">
+        <div className="flex flex-col gap-2">
+          {currentTab === "upload" && (
+            <div className="flex justify-center py-2">
+              <UploadButton
+                fileType="audio"
+                filePathProps={uploadFileProps}
+                onFileUploaded={updateUrl}
+              >
+                {t("editor.blocks.bubbles.audio.settings.chooseFile.label")}
+              </UploadButton>
+            </div>
+          )}
+          {currentTab === "link" && (
+            <>
+              <DebouncedTextInputWithVariablesButton
+                placeholder={t(
+                  "editor.blocks.bubbles.audio.settings.worksWith.placeholder",
+                )}
+                defaultValue={content?.url ?? ""}
+                onValueChange={updateUrl}
+              />
+              <p className="text-sm text-center" color="gray.400">
+                {t("editor.blocks.bubbles.audio.settings.worksWith.text")}
+              </p>
+            </>
+          )}
+        </div>
+        <Field.Root>
+          <Field.Label>
+            {t("editor.blocks.bubbles.audio.settings.autoplay.label")}
+          </Field.Label>
+          <Switch
+            checked={
+              content?.isAutoplayEnabled ??
+              defaultAudioBubbleContent.isAutoplayEnabled
+            }
+            onCheckedChange={updateAutoPlay}
+          />
+        </Field.Root>
+      </div>
+    </div>
+  );
+};

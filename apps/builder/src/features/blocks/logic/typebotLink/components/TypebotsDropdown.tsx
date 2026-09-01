@@ -1,18 +1,19 @@
-import { HStack, IconButton, Input } from '@chakra-ui/react'
-import { ExternalLinkIcon } from '@/components/icons'
-import { useToast } from '@/hooks/useToast'
-import Link from 'next/link'
-import { useRouter } from 'next/router'
-import { Select } from '@/components/inputs/Select'
-import { EmojiOrImageIcon } from '@/components/EmojiOrImageIcon'
-import { useTypebots } from '@/features/dashboard/hooks/useTypebots'
+import { useQuery } from "@tanstack/react-query";
+import { EmojiOrImageIcon } from "@typebot.io/ui/components/EmojiOrImageIcon";
+import { Input } from "@typebot.io/ui/components/Input";
+import { ArrowUpRight01Icon } from "@typebot.io/ui/icons/ArrowUpRight01Icon";
+import { LayoutBottomIcon } from "@typebot.io/ui/icons/LayoutBottomIcon";
+import { useRouter } from "next/router";
+import { ButtonLink } from "@/components/ButtonLink";
+import { BasicSelect } from "@/components/inputs/BasicSelect";
+import { orpc } from "@/lib/queryClient";
 
 type Props = {
-  idsToExclude: string[]
-  typebotId?: string | 'current'
-  currentWorkspaceId: string
-  onSelect: (typebotId: string | 'current' | undefined) => void
-}
+  idsToExclude: string[];
+  typebotId?: string | "current";
+  currentWorkspaceId: string;
+  onSelect: (typebotId: string | "current" | undefined) => void;
+};
 
 export const TypebotsDropdown = ({
   idsToExclude,
@@ -20,50 +21,66 @@ export const TypebotsDropdown = ({
   onSelect,
   currentWorkspaceId,
 }: Props) => {
-  const { query } = useRouter()
-  const { showToast } = useToast()
-  const { typebots, isLoading } = useTypebots({
-    workspaceId: currentWorkspaceId,
-    onError: (e) => showToast({ title: e.name, description: e.message }),
-  })
+  const { query } = useRouter();
+  const { data, isLoading } = useQuery(
+    orpc.typebot.listTypebots.queryOptions({
+      input: {
+        workspaceId: currentWorkspaceId,
+      },
+    }),
+  );
 
-  if (isLoading) return <Input value="Loading..." isDisabled />
-  if (!typebots || typebots.length === 0)
-    return <Input value="No typebots found" isDisabled />
+  if (isLoading) return <Input value="Loading..." disabled />;
+  if (!data?.typebots || data.typebots.length === 0)
+    return <Input value="No typebots found" disabled />;
   return (
-    <HStack>
-      <Select
-        selectedItem={typebotId}
+    <div className="flex items-center gap-2 flex-1">
+      <BasicSelect
+        className="w-full"
+        value={typebotId}
         items={[
           {
-            label: 'Current typebot',
-            value: 'current',
+            label: "Current typebot",
+            value: "current",
           },
-          ...(typebots ?? [])
+          ...data.typebots
             .filter((typebot) => !idsToExclude.includes(typebot.id))
             .map((typebot) => ({
               icon: (
                 <EmojiOrImageIcon
                   icon={typebot.icon}
-                  boxSize="18px"
-                  emojiFontSize="18px"
+                  className="size-4.5 text-xl"
+                  defaultIcon={<LayoutBottomIcon className="size-full" />}
                 />
               ),
               label: typebot.name,
               value: typebot.id,
             })),
         ]}
-        onSelect={onSelect}
-        placeholder={'Select a typebot'}
+        onChange={onSelect}
+        placeholder={"Select a typebot"}
       />
-      {typebotId && typebotId !== 'current' && (
-        <IconButton
+      {typebotId && typebotId !== "current" && (
+        <ButtonLink
           aria-label="Navigate to typebot"
-          icon={<ExternalLinkIcon />}
-          as={Link}
-          href={`/typebots/${typebotId}/edit?parentId=${query.typebotId}`}
-        />
+          variant="secondary"
+          className="shrink-0"
+          size="icon"
+          href={{
+            pathname: "/typebots/[typebotId]/edit",
+            query: {
+              typebotId,
+              parentId: query.parentId
+                ? Array.isArray(query.parentId)
+                  ? query.parentId.concat(query.typebotId?.toString() ?? "")
+                  : [query.parentId, query.typebotId?.toString() ?? ""]
+                : (query.typebotId ?? []),
+            },
+          }}
+        >
+          <ArrowUpRight01Icon />
+        </ButtonLink>
       )}
-    </HStack>
-  )
-}
+    </div>
+  );
+};

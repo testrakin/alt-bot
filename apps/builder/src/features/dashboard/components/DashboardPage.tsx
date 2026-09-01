@@ -1,91 +1,116 @@
-import { Seo } from '@/components/Seo'
-import { useUser } from '@/features/account/hooks/useUser'
-import {
-  PreCheckoutModal,
-  PreCheckoutModalProps,
-} from '@/features/billing/components/PreCheckoutModal'
-import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
-import { useScopedI18n } from '@/locales'
-import { Stack, VStack, Spinner, Text } from '@chakra-ui/react'
-import { Plan } from '@typebot.io/prisma'
-import { useRouter } from 'next/router'
-import { useState, useEffect } from 'react'
-import { guessIfUserIsEuropean } from '@typebot.io/lib/pricing'
-import { DashboardHeader } from './DashboardHeader'
-import { FolderContent } from '@/features/folders/components/FolderContent'
-import { TypebotDndProvider } from '@/features/folders/TypebotDndProvider'
-import { ParentModalProvider } from '@/features/graph/providers/ParentModalProvider'
-import { trpc } from '@/lib/trpc'
+import { useMutation } from "@tanstack/react-query";
+import { useTranslate } from "@tolgee/react";
+import type { Plan } from "@typebot.io/prisma/enum";
+import { LoaderCircleIcon } from "@typebot.io/ui/icons/LoaderCircleIcon";
+import { useRouter } from "next/router";
+import { useEffect, useRef, useState } from "react";
+import { Seo } from "@/components/Seo";
+import { FolderContent } from "@/features/folders/components/FolderContent";
+import { TypebotDndProvider } from "@/features/folders/TypebotDndProvider";
+import { useUser } from "@/features/user/hooks/useUser";
+import { useWorkspace } from "@/features/workspace/WorkspaceProvider";
+import { orpc } from "@/lib/queryClient";
+import { toast } from "@/lib/toast";
+import { DashboardHeader } from "./DashboardHeader";
 
 export const DashboardPage = () => {
-  const scopedT = useScopedI18n('dashboard')
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
-  const { user } = useUser()
-  const { workspace } = useWorkspace()
-  const [preCheckoutPlan, setPreCheckoutPlan] =
-    useState<PreCheckoutModalProps['selectedSubscription']>()
-  const { mutate: createCustomCheckoutSession } =
-    trpc.billing.createCustomCheckoutSession.useMutation({
+  const { t } = useTranslate();
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const { user } = useUser();
+  const { workspace } = useWorkspace();
+  const isImportingTemplateRef = useRef(false);
+  const { mutate: createCheckoutSession } = useMutation(
+    orpc.billing.createCheckoutSession.mutationOptions({
       onSuccess: (data) => {
-        router.push(data.checkoutUrl)
+        router.push(data.checkoutUrl);
       },
-    })
+    }),
+  );
+  const { mutate: createCustomCheckoutSession } = useMutation(
+    orpc.billing.createCustomCheckoutSession.mutationOptions({
+      onSuccess: (data) => {
+        router.push(data.checkoutUrl);
+      },
+    }),
+  );
+  const { mutate: importTypebot } = useMutation(
+    orpc.typebot.importTypebot.mutationOptions({
+      onSuccess: (data) => {
+        router.push(`/typebots/${data.typebot.id}/edit`);
+      },
+      onError: (error) => {
+        toast({
+          title: t("errorMessage"),
+          description: error.message,
+        });
+        setIsLoading(false);
+        isImportingTemplateRef.current = false;
+      },
+    }),
+  );
 
   useEffect(() => {
-    const { subscribePlan, chats, storage, isYearly, claimCustomPlan } =
-      router.query as {
-        subscribePlan: Plan | undefined
-        chats: string | undefined
-        storage: string | undefined
-        isYearly: string | undefined
-        claimCustomPlan: string | undefined
-      }
+    const { subscribePlan, claimCustomPlan } = router.query as {
+      subscribePlan: Plan | undefined;
+      chats: string | undefined;
+      claimCustomPlan: string | undefined;
+    };
     if (claimCustomPlan && user?.email && workspace) {
-      setIsLoading(true)
+      setIsLoading(true);
       createCustomCheckoutSession({
         email: user.email,
         workspaceId: workspace.id,
         returnUrl: `${window.location.origin}/typebots`,
-      })
+      });
     }
-    if (workspace && subscribePlan && user && workspace.plan === 'FREE') {
-      setIsLoading(true)
-      setPreCheckoutPlan({
-        plan: subscribePlan as 'PRO' | 'STARTER',
+    if (
+      workspace &&
+      !workspace.stripeId &&
+      subscribePlan &&
+      user &&
+      workspace.plan === "FREE"
+    ) {
+      setIsLoading(true);
+      createCheckoutSession({
         workspaceId: workspace.id,
-        additionalChats: chats ? parseInt(chats) : 0,
-        additionalStorage: storage ? parseInt(storage) : 0,
-        currency: guessIfUserIsEuropean() ? 'eur' : 'usd',
-        isYearly: isYearly === 'false' ? false : true,
-      })
+        returnUrl: `${window.location.origin}/typebots`,
+        plan: subscribePlan as "PRO" | "STARTER",
+      });
     }
-  }, [createCustomCheckoutSession, router.query, user, workspace])
+  }, [createCustomCheckoutSession, router.query, user, workspace]);
+
+  useEffect(() => {
+    const template = router.query.template as string | undefined;
+    if (!template || !workspace?.id || !user || isImportingTemplateRef.current)
+      return;
+    isImportingTemplateRef.current = true;
+    setIsLoading(true);
+    importTemplate(template, workspace.id);
+  }, [router.query.template, workspace?.id, user]);
+
+  const importTemplate = (templateSlug: string, workspaceId: string) => {
+    importTypebot({
+      workspaceId,
+      templateSlug,
+      fromTemplate: templateSlug,
+    });
+  };
 
   return (
-    <Stack minH="100vh">
-      <Seo title={workspace?.name ?? scopedT('title')} />
+    <div className="flex flex-col gap-2 min-h-screen">
+      <Seo title={workspace?.name ?? t("dashboard.title")} />
       <DashboardHeader />
-      {!workspace?.stripeId && (
-        <ParentModalProvider>
-          <PreCheckoutModal
-            selectedSubscription={preCheckoutPlan}
-            existingEmail={user?.email ?? undefined}
-            existingCompany={workspace?.name ?? undefined}
-            onClose={() => setPreCheckoutPlan(undefined)}
-          />
-        </ParentModalProvider>
-      )}
       <TypebotDndProvider>
         {isLoading ? (
-          <VStack w="full" justifyContent="center" pt="10" spacing={6}>
-            <Text>{scopedT('redirectionMessage')}</Text>
-            <Spinner />
-          </VStack>
+          <div className="flex flex-col w-full justify-center pt-10 gap-6">
+            <p>{t("dashboard.redirectionMessage")}</p>
+            <LoaderCircleIcon className="animate-spin" />
+          </div>
         ) : (
           <FolderContent folder={null} />
         )}
       </TypebotDndProvider>
-    </Stack>
-  )
-}
+    </div>
+  );
+};

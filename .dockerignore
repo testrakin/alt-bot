@@ -3,12 +3,11 @@ Dockerfile
 **/node_modules
 npm-debug.log
 README.md
-.next
+**/.next
 .git
 .github
-.turbo
-
+.nx
+**/.env
 landing-page
 docs
-packages/scripts
 wordpress

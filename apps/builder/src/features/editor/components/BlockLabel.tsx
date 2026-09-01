@@ -1,81 +1,97 @@
-import { Text } from '@chakra-ui/react'
+import { type TFnType, useTranslate } from "@tolgee/react";
+import { BubbleBlockType } from "@typebot.io/blocks-bubbles/constants";
 import {
-  BubbleBlockType,
-  InputBlockType,
-  IntegrationBlockType,
-  LogicBlockType,
-  BlockType,
-} from '@typebot.io/schemas'
-import React from 'react'
+  isBubbleBlockType,
+  isForgedBlockType,
+  isInputBlockType,
+  isIntegrationBlockType,
+  isLogicBlockType,
+} from "@typebot.io/blocks-core/helpers";
+import type { Block } from "@typebot.io/blocks-core/schemas/schema";
+import { InputBlockType } from "@typebot.io/blocks-inputs/constants";
+import { IntegrationBlockType } from "@typebot.io/blocks-integrations/constants";
+import { LogicBlockType } from "@typebot.io/blocks-logic/constants";
+import { cn } from "@typebot.io/ui/lib/cn";
+import type { JSX } from "react";
+import { ForgedBlockLabel } from "@/features/forge/ForgedBlockLabel";
 
-type Props = { type: BlockType }
+type Props = { type: Block["type"]; className?: string };
 
-export const BlockLabel = ({ type }: Props): JSX.Element => {
-  switch (type) {
-    case 'start':
-      return <Text>Start</Text>
-    case BubbleBlockType.TEXT:
-    case InputBlockType.TEXT:
-      return <Text>Text</Text>
-    case BubbleBlockType.IMAGE:
-      return <Text>Image</Text>
-    case BubbleBlockType.VIDEO:
-      return <Text>Video</Text>
-    case BubbleBlockType.EMBED:
-      return <Text>Embed</Text>
-    case BubbleBlockType.AUDIO:
-      return <Text>Audio</Text>
-    case InputBlockType.NUMBER:
-      return <Text>Number</Text>
-    case InputBlockType.EMAIL:
-      return <Text>Email</Text>
-    case InputBlockType.URL:
-      return <Text>Website</Text>
-    case InputBlockType.DATE:
-      return <Text>Date</Text>
-    case InputBlockType.PHONE:
-      return <Text>Phone</Text>
-    case InputBlockType.CHOICE:
-      return <Text>Button</Text>
-    case InputBlockType.PAYMENT:
-      return <Text>Payment</Text>
-    case InputBlockType.RATING:
-      return <Text>Rating</Text>
-    case InputBlockType.FILE:
-      return <Text>File</Text>
-    case LogicBlockType.SET_VARIABLE:
-      return <Text>Set variable</Text>
-    case LogicBlockType.CONDITION:
-      return <Text>Condition</Text>
-    case LogicBlockType.REDIRECT:
-      return <Text>Redirect</Text>
-    case LogicBlockType.SCRIPT:
-      return <Text>Script</Text>
-    case LogicBlockType.TYPEBOT_LINK:
-      return <Text>Typebot</Text>
-    case LogicBlockType.WAIT:
-      return <Text>Wait</Text>
-    case LogicBlockType.JUMP:
-      return <Text>Jump</Text>
-    case LogicBlockType.AB_TEST:
-      return <Text>AB Test</Text>
-    case IntegrationBlockType.GOOGLE_SHEETS:
-      return <Text>Sheets</Text>
-    case IntegrationBlockType.GOOGLE_ANALYTICS:
-      return <Text>Analytics</Text>
-    case IntegrationBlockType.WEBHOOK:
-      return <Text>Webhook</Text>
-    case IntegrationBlockType.ZAPIER:
-      return <Text>Zapier</Text>
-    case IntegrationBlockType.MAKE_COM:
-      return <Text>Make.com</Text>
-    case IntegrationBlockType.PABBLY_CONNECT:
-      return <Text>Pabbly</Text>
-    case IntegrationBlockType.EMAIL:
-      return <Text>Email</Text>
-    case IntegrationBlockType.CHATWOOT:
-      return <Text>Chatwoot</Text>
-    case IntegrationBlockType.OPEN_AI:
-      return <Text>OpenAI</Text>
-  }
-}
+export const BlockLabel = ({ type, className }: Props): JSX.Element => {
+  const { t } = useTranslate();
+
+  if (isForgedBlockType(type))
+    return <ForgedBlockLabel type={type} className={className} />;
+
+  const label = isBubbleBlockType(type)
+    ? getBubbleBlockLabel(t)[type]
+    : isInputBlockType(type)
+      ? getInputBlockLabel(t)[type]
+      : isLogicBlockType(type)
+        ? getLogicBlockLabel(t)[type]
+        : isIntegrationBlockType(type)
+          ? getIntegrationBlockLabel(t)[type]
+          : t("editor.sidebarBlock.start.label");
+
+  return <p className={cn("text-sm", className)}>{label}</p>;
+};
+
+export const getBubbleBlockLabel = (
+  t: TFnType,
+): { [key in BubbleBlockType]: string } => ({
+  [BubbleBlockType.TEXT]: t("editor.sidebarBlock.text.label"),
+  [BubbleBlockType.IMAGE]: t("editor.sidebarBlock.image.label"),
+  [BubbleBlockType.VIDEO]: t("editor.sidebarBlock.video.label"),
+  [BubbleBlockType.EMBED]: t("editor.sidebarBlock.embed.label"),
+  [BubbleBlockType.AUDIO]: t("editor.sidebarBlock.audio.label"),
+});
+
+export const getInputBlockLabel = (
+  t: TFnType,
+): { [key in InputBlockType]: string } => ({
+  [InputBlockType.NUMBER]: t("editor.sidebarBlock.number.label"),
+  [InputBlockType.EMAIL]: t("editor.sidebarBlock.email.label"),
+  [InputBlockType.TEXT]: t("editor.sidebarBlock.text.label"),
+  [InputBlockType.URL]: t("editor.sidebarBlock.website.label"),
+  [InputBlockType.DATE]: t("editor.sidebarBlock.date.label"),
+  [InputBlockType.PHONE]: t("editor.sidebarBlock.phone.label"),
+  [InputBlockType.CHOICE]: t("editor.sidebarBlock.button.label"),
+  [InputBlockType.PICTURE_CHOICE]: t("editor.sidebarBlock.picChoice.label"),
+  [InputBlockType.PAYMENT]: t("editor.sidebarBlock.payment.label"),
+  [InputBlockType.RATING]: t("editor.sidebarBlock.rating.label"),
+  [InputBlockType.FILE]: t("editor.sidebarBlock.file.label"),
+  [InputBlockType.TIME]: "Time",
+  [InputBlockType.CARDS]: "Cards",
+});
+
+export const getLogicBlockLabel = (
+  t: TFnType,
+): { [key in LogicBlockType]: string } => ({
+  [LogicBlockType.SET_VARIABLE]: t("editor.sidebarBlock.setVariable.label"),
+  [LogicBlockType.CONDITION]: t("editor.sidebarBlock.condition.label"),
+  [LogicBlockType.REDIRECT]: t("editor.sidebarBlock.redirect.label"),
+  [LogicBlockType.SCRIPT]: t("editor.sidebarBlock.script.label"),
+  [LogicBlockType.TYPEBOT_LINK]: t("editor.sidebarBlock.typebot.label"),
+  [LogicBlockType.WAIT]: t("editor.sidebarBlock.wait.label"),
+  [LogicBlockType.JUMP]: t("editor.sidebarBlock.jump.label"),
+  [LogicBlockType.AB_TEST]: t("editor.sidebarBlock.abTest.label"),
+  [LogicBlockType.WEBHOOK]: "Webhook",
+  [LogicBlockType.RETURN]: "Return",
+});
+
+export const getIntegrationBlockLabel = (
+  t: TFnType,
+): { [key in IntegrationBlockType]: string } => ({
+  [IntegrationBlockType.GOOGLE_SHEETS]: t("editor.sidebarBlock.sheets.label"),
+  [IntegrationBlockType.GOOGLE_ANALYTICS]: t(
+    "editor.sidebarBlock.analytics.label",
+  ),
+  [IntegrationBlockType.HTTP_REQUEST]: "HTTP request",
+  [IntegrationBlockType.ZAPIER]: t("editor.sidebarBlock.zapier.label"),
+  [IntegrationBlockType.MAKE_COM]: t("editor.sidebarBlock.makecom.label"),
+  [IntegrationBlockType.PABBLY_CONNECT]: t("editor.sidebarBlock.pabbly.label"),
+  [IntegrationBlockType.EMAIL]: t("editor.sidebarBlock.email.label"),
+  [IntegrationBlockType.CHATWOOT]: t("editor.sidebarBlock.chatwoot.label"),
+  [IntegrationBlockType.OPEN_AI]: t("editor.sidebarBlock.openai.label"),
+  [IntegrationBlockType.PIXEL]: t("editor.sidebarBlock.pixel.label"),
+});

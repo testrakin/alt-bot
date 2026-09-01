@@ -1,26 +1,43 @@
-import { isMobile } from '@/utils/isMobileSignal'
-import { splitProps } from 'solid-js'
-import { JSX } from 'solid-js/jsx-runtime'
-import { SendIcon } from './icons'
-import { Button } from './Button'
+import { isEmpty } from "@typebot.io/lib/utils";
+import { cx } from "@typebot.io/ui/lib/cva";
+import { Match, Switch, splitProps } from "solid-js";
+import { useChatContainerSize } from "../contexts/ChatContainerSizeContext";
+import { Button, type ButtonProps } from "./Button";
+import { SendIcon } from "./icons/SendIcon";
 
 type SendButtonProps = {
-  isDisabled?: boolean
-  isLoading?: boolean
-  disableIcon?: boolean
-} & JSX.ButtonHTMLAttributes<HTMLButtonElement>
+  isDisabled?: boolean;
+  isLoading?: boolean;
+  disableIcon?: boolean;
+} & ButtonProps;
 
 export const SendButton = (props: SendButtonProps) => {
-  const [local, others] = splitProps(props, ['disableIcon'])
+  const chatContainerSize = useChatContainerSize();
+  const [local, buttonProps] = splitProps(props, [
+    "isDisabled",
+    "isLoading",
+    "disableIcon",
+  ]);
+
+  const showIcon =
+    (chatContainerSize() === "sm" && !local.disableIcon) ||
+    !buttonProps.children ||
+    (typeof buttonProps.children === "string" && isEmpty(buttonProps.children));
   return (
-    <Button type="submit" {...others}>
-      {isMobile() && !local.disableIcon ? (
-        <SendIcon
-          class={'send-icon flex ' + (local.disableIcon ? 'hidden' : '')}
-        />
-      ) : (
-        props.children
-      )}
+    <Button
+      {...buttonProps}
+      type={buttonProps.type ?? "submit"}
+      class={cx(buttonProps.class, "flex items-center")}
+      aria-label={showIcon ? "Send" : undefined}
+    >
+      <Switch>
+        <Match when={showIcon}>
+          <SendIcon
+            class={`send-icon flex w-6 h-6 ${local.disableIcon ? "hidden" : ""}`}
+          />
+        </Match>
+        <Match when={!showIcon}>{props.children}</Match>
+      </Switch>
     </Button>
-  )
-}
+  );
+};

@@ -1,114 +1,140 @@
-import { Seo } from '@/components/Seo'
-import { AnalyticsGraphContainer } from '@/features/analytics/components/AnalyticsGraphContainer'
-import { TypebotHeader } from '@/features/editor/components/TypebotHeader'
-import { useTypebot } from '@/features/editor/providers/TypebotProvider'
-import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
-import { useToast } from '@/hooks/useToast'
+import { useQuery } from "@tanstack/react-query";
 import {
-  Flex,
-  HStack,
-  Button,
-  Tag,
-  Text,
-  useColorModeValue,
-} from '@chakra-ui/react'
-import Link from 'next/link'
-import { useRouter } from 'next/router'
-import { useMemo } from 'react'
-import { useStats } from '../hooks/useStats'
-import { ResultsProvider } from '../ResultsProvider'
-import { ResultsTableContainer } from './ResultsTableContainer'
-import { UsageAlertBanners } from './UsageAlertBanners'
+  defaultTimeFilter,
+  type TimeFilter,
+  timeFilterValues,
+} from "@typebot.io/results/timeFilter";
+import { Badge } from "@typebot.io/ui/components/Badge";
+import { useRouter } from "next/router";
+import { useQueryState } from "nuqs";
+import { useMemo } from "react";
+import { ButtonLink } from "@/components/ButtonLink";
+import { Seo } from "@/components/Seo";
+import { AnalyticsGraphContainer } from "@/features/analytics/components/AnalyticsGraphContainer";
+import { TypebotHeader } from "@/features/editor/components/TypebotHeader";
+import { useTypebot } from "@/features/editor/providers/TypebotProvider";
+import { useWorkspace } from "@/features/workspace/WorkspaceProvider";
+import { orpc } from "@/lib/queryClient";
+import { ResultsProvider } from "../ResultsProvider";
+import { ResultsTableContainer } from "./ResultsTableContainer";
+
+const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 export const ResultsPage = () => {
-  const router = useRouter()
-  const { workspace } = useWorkspace()
-  const { typebot, publishedTypebot } = useTypebot()
+  const router = useRouter();
+  const { workspace } = useWorkspace();
+  const { typebot, publishedTypebot } = useTypebot();
   const isAnalytics = useMemo(
-    () => router.pathname.endsWith('analytics'),
-    [router.pathname]
-  )
-  const { showToast } = useToast()
+    () => router.pathname.endsWith("analytics"),
+    [router.pathname],
+  );
+  const [timeFilter, setTimeFilter] = useQueryState<TimeFilter>("timeFilter", {
+    defaultValue: defaultTimeFilter,
+    parse: (val) => {
+      const matchingTimeFilter = timeFilterValues.find(
+        (timeFilter) => timeFilter === val,
+      );
+      if (matchingTimeFilter) return matchingTimeFilter;
+      return null;
+    },
+  });
 
-  const { stats, mutate } = useStats({
-    typebotId: publishedTypebot?.typebotId,
-    onError: (err) => showToast({ title: err.name, description: err.message }),
-  })
+  const { data: { stats } = {}, refetch } = useQuery(
+    orpc.analytics.getStats.queryOptions({
+      input: {
+        typebotId: publishedTypebot?.typebotId as string,
+        timeFilter,
+        timeZone,
+      },
+      enabled: !!publishedTypebot,
+    }),
+  );
 
-  const handleDeletedResults = (total: number) => {
-    if (!stats) return
-    mutate({
-      stats: { ...stats, totalStarts: stats.totalStarts - total },
-    })
-  }
+  const handleDeletedResults = () => {
+    if (!stats) return;
+    refetch();
+  };
 
   return (
-    <Flex overflow="hidden" h="100vh" flexDir="column">
+    <div className="flex overflow-hidden h-screen flex-col">
       <Seo
         title={
-          router.pathname.endsWith('analytics')
+          router.pathname.endsWith("analytics")
             ? typebot?.name
               ? `${typebot.name} | Analytics`
-              : 'Analytics'
+              : "Analytics"
             : typebot?.name
-            ? `${typebot.name} | Results`
-            : 'Results'
+              ? `${typebot.name} | Results`
+              : "Results"
         }
       />
       <TypebotHeader />
-      {workspace && <UsageAlertBanners workspace={workspace} />}
-      <Flex h="full" w="full">
-        <Flex
-          pos="absolute"
-          zIndex={2}
-          w="full"
-          bg={useColorModeValue('white', 'gray.900')}
-          justifyContent="center"
-          h="60px"
-          display={['none', 'flex']}
-        >
-          <HStack maxW="1600px" w="full" px="4">
-            <Button
-              as={Link}
-              colorScheme={!isAnalytics ? 'blue' : 'gray'}
-              variant={!isAnalytics ? 'outline' : 'ghost'}
+      <div className="flex h-full w-full bg-gray-1">
+        <div className="absolute w-full justify-center h-[60px] hidden sm:flex">
+          <div className="flex items-center gap-2 max-w-[1600px] w-full px-4">
+            <ButtonLink
+              variant={!isAnalytics ? "outline" : "ghost"}
               size="sm"
-              href={`/typebots/${typebot?.id}/results`}
+              href={{
+                pathname: "/typebots/[typebotId]/results",
+                query: {
+                  typebotId: publishedTypebot?.typebotId,
+                  timeFilter:
+                    timeFilter && timeFilter !== defaultTimeFilter
+                      ? timeFilter
+                      : undefined,
+                },
+              }}
             >
-              <Text>Submissions</Text>
+              <p>Submissions</p>
               {(stats?.totalStarts ?? 0) > 0 && (
-                <Tag size="sm" colorScheme="blue" ml="1">
+                <Badge colorScheme="orange" className="ml-1">
                   {stats?.totalStarts}
-                </Tag>
+                </Badge>
               )}
-            </Button>
-            <Button
-              as={Link}
-              colorScheme={isAnalytics ? 'blue' : 'gray'}
-              variant={isAnalytics ? 'outline' : 'ghost'}
-              href={`/typebots/${typebot?.id}/results/analytics`}
+            </ButtonLink>
+            <ButtonLink
+              variant={isAnalytics ? "outline" : "ghost"}
+              href={{
+                pathname: "/typebots/[typebotId]/results/analytics",
+                query: {
+                  typebotId: publishedTypebot?.typebotId,
+                  timeFilter:
+                    timeFilter && timeFilter !== defaultTimeFilter
+                      ? timeFilter
+                      : undefined,
+                },
+              }}
               size="sm"
             >
               Analytics
-            </Button>
-          </HStack>
-        </Flex>
-        <Flex pt={['10px', '60px']} w="full" justify="center">
+            </ButtonLink>
+          </div>
+        </div>
+        <div className="flex w-full justify-center pt-[10px] sm:pt-[60px]">
           {workspace &&
             publishedTypebot &&
             (isAnalytics ? (
-              <AnalyticsGraphContainer stats={stats} />
+              <AnalyticsGraphContainer
+                stats={stats}
+                timeFilter={timeFilter}
+                onTimeFilterChange={setTimeFilter}
+              />
             ) : (
               <ResultsProvider
+                timeFilter={timeFilter}
                 typebotId={publishedTypebot.typebotId}
                 totalResults={stats?.totalStarts ?? 0}
                 onDeleteResults={handleDeletedResults}
               >
-                <ResultsTableContainer />
+                <ResultsTableContainer
+                  timeFilter={timeFilter}
+                  onTimeFilterChange={setTimeFilter}
+                />
               </ResultsProvider>
             ))}
-        </Flex>
-      </Flex>
-    </Flex>
-  )
-}
+        </div>
+      </div>
+    </div>
+  );
+};

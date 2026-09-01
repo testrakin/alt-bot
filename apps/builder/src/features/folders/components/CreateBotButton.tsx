@@ -1,49 +1,41 @@
-import { Button, ButtonProps, Text, VStack } from '@chakra-ui/react'
-import { PlusIcon } from '@/components/icons'
-import { useRouter } from 'next/router'
-import { stringify } from 'qs'
-import React from 'react'
-import { useScopedI18n } from '@/locales'
+import { useTranslate } from "@tolgee/react";
+import { Button, type ButtonProps } from "@typebot.io/ui/components/Button";
+import { PlusSignIcon } from "@typebot.io/ui/icons/PlusSignIcon";
+import { cn } from "@typebot.io/ui/lib/cn";
+import { useRouter } from "next/router";
+import { stringify } from "qs";
+import { useTypebotDnd } from "../TypebotDndProvider";
 
 export const CreateBotButton = ({
   folderId,
-  isFirstBot,
   ...props
-}: { folderId?: string; isFirstBot: boolean } & ButtonProps) => {
-  const scopedT = useScopedI18n('folders.createTypebotButton')
-  const router = useRouter()
+}: { folderId?: string } & ButtonProps) => {
+  const { t } = useTranslate();
+  const router = useRouter();
+  const { draggedTypebot } = useTypebotDnd();
 
   const handleClick = () =>
     router.push(
       `/typebots/create?${stringify({
-        isFirstBot: !isFirstBot ? undefined : isFirstBot,
         folderId,
-      })}`
-    )
+      })}`,
+    );
 
   return (
     <Button
-      mr={{ sm: 6 }}
-      mb={6}
-      style={{ width: '225px', height: '270px' }}
       onClick={handleClick}
-      paddingX={6}
-      whiteSpace={'normal'}
-      colorScheme="blue"
+      className={cn(
+        "px-6 whitespace-normal w-[225px] h-[270px] [&_svg]:size-10",
+        draggedTypebot && "opacity-30",
+      )}
       {...props}
     >
-      <VStack spacing="6">
-        <PlusIcon fontSize="40px" />
-        <Text
-          fontSize={18}
-          fontWeight="medium"
-          maxW={40}
-          textAlign="center"
-          mt="6"
-        >
-          {scopedT('label')}
-        </Text>
-      </VStack>
+      <div className="flex flex-col items-center gap-6">
+        <PlusSignIcon />
+        <p className="font-medium max-w-40 text-center mt-6 text-lg">
+          {t("folders.createTypebotButton.label")}
+        </p>
+      </div>
     </Button>
-  )
-}
+  );
+};

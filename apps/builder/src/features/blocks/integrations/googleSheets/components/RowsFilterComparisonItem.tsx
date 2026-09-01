@@ -1,53 +1,55 @@
-import { DropdownList } from '@/components/DropdownList'
-import { TextInput } from '@/components/inputs'
-import { TableListItemProps } from '@/components/TableList'
-import { Stack } from '@chakra-ui/react'
-import { ComparisonOperators, RowsFilterComparison } from '@typebot.io/schemas'
-import React from 'react'
+import type { RowsFilterComparison } from "@typebot.io/blocks-integrations/googleSheets/schema";
+import { ComparisonOperators } from "@typebot.io/conditions/constants";
+import { BasicSelect } from "@/components/inputs/BasicSelect";
+import { DebouncedTextInputWithVariablesButton } from "@/components/inputs/DebouncedTextInput";
+import type { TableListItemProps } from "@/components/TableList";
 
 export const RowsFilterComparisonItem = ({
   item,
   columns,
   onItemChange,
 }: TableListItemProps<RowsFilterComparison> & { columns: string[] }) => {
-  const handleColumnSelect = (column: string) => {
-    if (column === item.column) return
-    onItemChange({ ...item, column })
-  }
+  const handleColumnSelect = (column: string | undefined) => {
+    if (column === item.column) return;
+    onItemChange({ ...item, column });
+  };
 
   const handleSelectComparisonOperator = (
-    comparisonOperator: ComparisonOperators
+    comparisonOperator: ComparisonOperators | undefined,
   ) => {
-    if (comparisonOperator === item.comparisonOperator) return
-    onItemChange({ ...item, comparisonOperator })
-  }
+    if (comparisonOperator === item.comparisonOperator) return;
+    onItemChange({ ...item, comparisonOperator });
+  };
 
   const handleChangeValue = (value: string) => {
-    if (value === item.value) return
-    onItemChange({ ...item, value })
-  }
+    if (value === item.value) return;
+    onItemChange({ ...item, value });
+  };
 
   return (
-    <Stack p="4" rounded="md" flex="1" borderWidth="1px">
-      <DropdownList
-        currentItem={item.column}
-        onItemSelect={handleColumnSelect}
+    <div className="flex flex-col gap-2 p-4 rounded-md flex-1 border">
+      <BasicSelect
+        className="w-full"
+        value={item.column}
+        onChange={handleColumnSelect}
         items={columns}
         placeholder="Select a column"
       />
-      <DropdownList
-        currentItem={item.comparisonOperator}
-        onItemSelect={handleSelectComparisonOperator}
+      <BasicSelect
+        className="w-full"
+        value={item.comparisonOperator}
+        onChange={handleSelectComparisonOperator}
         items={Object.values(ComparisonOperators)}
         placeholder="Select an operator"
       />
-      {item.comparisonOperator !== ComparisonOperators.IS_SET && (
-        <TextInput
-          defaultValue={item.value ?? ''}
-          onChange={handleChangeValue}
-          placeholder="Type a value..."
-        />
-      )}
-    </Stack>
-  )
-}
+      {item.comparisonOperator !== ComparisonOperators.IS_SET &&
+        item.comparisonOperator !== ComparisonOperators.IS_EMPTY && (
+          <DebouncedTextInputWithVariablesButton
+            defaultValue={item.value ?? ""}
+            onValueChange={handleChangeValue}
+            placeholder="Type a value..."
+          />
+        )}
+    </div>
+  );
+};

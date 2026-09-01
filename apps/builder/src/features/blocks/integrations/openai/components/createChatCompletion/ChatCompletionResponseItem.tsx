@@ -1,39 +1,42 @@
-import { DropdownList } from '@/components/DropdownList'
-import { VariableSearchInput } from '@/components/inputs/VariableSearchInput'
-import { TableListItemProps } from '@/components/TableList'
-import { Stack } from '@chakra-ui/react'
-import { Variable } from '@typebot.io/schemas'
 import {
-  ChatCompletionOpenAIOptions,
   chatCompletionResponseValues,
-} from '@typebot.io/schemas/features/blocks/integrations/openai'
+  defaultOpenAIResponseMappingItem,
+} from "@typebot.io/blocks-integrations/openai/constants";
+import type { ChatCompletionOpenAIOptions } from "@typebot.io/blocks-integrations/openai/schema";
+import type { Variable } from "@typebot.io/variables/schemas";
+import { BasicSelect } from "@/components/inputs/BasicSelect";
+import { VariablesCombobox } from "@/components/inputs/VariablesCombobox";
+import type { TableListItemProps } from "@/components/TableList";
 
 type Props = TableListItemProps<
-  ChatCompletionOpenAIOptions['responseMapping'][number]
->
+  NonNullable<ChatCompletionOpenAIOptions["responseMapping"]>[number]
+>;
 
 export const ChatCompletionResponseItem = ({ item, onItemChange }: Props) => {
   const changeValueToExtract = (
-    valueToExtract: (typeof chatCompletionResponseValues)[number]
+    valueToExtract: (typeof chatCompletionResponseValues)[number] | undefined,
   ) => {
-    onItemChange({ ...item, valueToExtract })
-  }
+    if (!valueToExtract) return;
+    onItemChange({ ...item, valueToExtract });
+  };
 
-  const changeVariableId = (variable: Pick<Variable, 'id'> | undefined) => {
-    onItemChange({ ...item, variableId: variable ? variable.id : undefined })
-  }
+  const changeVariableId = (variable: Pick<Variable, "id"> | undefined) => {
+    onItemChange({ ...item, variableId: variable ? variable.id : undefined });
+  };
 
   return (
-    <Stack p="4" rounded="md" flex="1" borderWidth="1px">
-      <DropdownList
-        currentItem={item.valueToExtract ?? 'Message content'}
+    <div className="flex flex-col gap-2 p-4 rounded-md flex-1 border">
+      <BasicSelect
+        className="w-full"
+        value={item.valueToExtract}
+        defaultValue={defaultOpenAIResponseMappingItem.valueToExtract}
         items={chatCompletionResponseValues}
-        onItemSelect={changeValueToExtract}
+        onChange={changeValueToExtract}
       />
-      <VariableSearchInput
+      <VariablesCombobox
         onSelectVariable={changeVariableId}
         initialVariableId={item.variableId}
       />
-    </Stack>
-  )
-}
+    </div>
+  );
+};

@@ -1,48 +1,40 @@
-import { AudioBubbleForm } from '@/features/blocks/bubbles/audio/components/AudioBubbleForm'
-import { EmbedUploadContent } from '@/features/blocks/bubbles/embed/components/EmbedUploadContent'
-import { ImageBubbleSettings } from '@/features/blocks/bubbles/image/components/ImageBubbleSettings'
-import { VideoUploadContent } from '@/features/blocks/bubbles/video/components/VideoUploadContent'
-import {
-  Portal,
-  PopoverContent,
-  PopoverArrow,
-  PopoverBody,
-} from '@chakra-ui/react'
-import {
+import { BubbleBlockType } from "@typebot.io/blocks-bubbles/constants";
+import type {
   BubbleBlock,
   BubbleBlockContent,
-  BubbleBlockType,
-  TextBubbleBlock,
-} from '@typebot.io/schemas'
-import { useRef } from 'react'
+} from "@typebot.io/blocks-bubbles/schema";
+import type { TextBubbleBlock } from "@typebot.io/blocks-bubbles/text/schema";
+import { Popover } from "@typebot.io/ui/components/Popover";
+import { cx } from "@typebot.io/ui/lib/cva";
+import { AudioBubbleForm } from "@/features/blocks/bubbles/audio/components/AudioBubbleForm";
+import { EmbedBubbleSettings } from "@/features/blocks/bubbles/embed/components/EmbedBubbleSettings";
+import { ImageBubbleSettings } from "@/features/blocks/bubbles/image/components/ImageBubbleSettings";
+import { VideoUploadContent } from "@/features/blocks/bubbles/video/components/VideoUploadContent";
+import type { FilePathUploadProps } from "@/features/upload/api/generateUploadUrl";
 
 type Props = {
-  typebotId: string
-  block: Exclude<BubbleBlock, TextBubbleBlock>
-  onContentChange: (content: BubbleBlockContent) => void
-}
+  uploadFileProps: FilePathUploadProps;
+  block: Exclude<BubbleBlock, TextBubbleBlock>;
+  side?: "left" | "right" | "top" | "bottom";
+  onContentChange: (content: BubbleBlockContent) => void;
+};
 
 export const MediaBubblePopoverContent = (props: Props) => {
-  const ref = useRef<HTMLDivElement | null>(null)
-  const handleMouseDown = (e: React.MouseEvent) => e.stopPropagation()
-
   return (
-    <Portal>
-      <PopoverContent
-        onMouseDown={handleMouseDown}
-        w={props.block.type === BubbleBlockType.IMAGE ? '500px' : '400px'}
-      >
-        <PopoverArrow />
-        <PopoverBody ref={ref} shadow="lg">
-          <MediaBubbleContent {...props} />
-        </PopoverBody>
-      </PopoverContent>
-    </Portal>
-  )
-}
+    <Popover.Popup
+      className={cx(
+        "p-4",
+        props.block.type === BubbleBlockType.IMAGE ? "w-[500px]" : "w-[400px]",
+      )}
+      side={props.side}
+    >
+      <MediaBubbleContent {...props} />
+    </Popover.Popup>
+  );
+};
 
 export const MediaBubbleContent = ({
-  typebotId,
+  uploadFileProps,
   block,
   onContentChange,
 }: Props) => {
@@ -50,11 +42,11 @@ export const MediaBubbleContent = ({
     case BubbleBlockType.IMAGE: {
       return (
         <ImageBubbleSettings
-          typebotId={typebotId}
+          uploadFileProps={uploadFileProps}
           block={block}
           onContentChange={onContentChange}
         />
-      )
+      );
     }
     case BubbleBlockType.VIDEO: {
       return (
@@ -62,24 +54,24 @@ export const MediaBubbleContent = ({
           content={block.content}
           onSubmit={onContentChange}
         />
-      )
+      );
     }
     case BubbleBlockType.EMBED: {
       return (
-        <EmbedUploadContent
+        <EmbedBubbleSettings
           content={block.content}
           onSubmit={onContentChange}
         />
-      )
+      );
     }
     case BubbleBlockType.AUDIO: {
       return (
         <AudioBubbleForm
           content={block.content}
-          fileUploadPath={`typebots/${typebotId}/blocks/${block.id}`}
-          onSubmit={onContentChange}
+          uploadFileProps={uploadFileProps}
+          onContentChange={onContentChange}
         />
-      )
+      );
     }
   }
-}
+};

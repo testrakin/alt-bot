@@ -1,116 +1,131 @@
-import { DropdownList } from '@/components/DropdownList'
-import { TextInput } from '@/components/inputs'
 import {
-  Accordion,
-  AccordionButton,
-  AccordionIcon,
-  AccordionItem,
-  AccordionPanel,
-  Stack,
-} from '@chakra-ui/react'
-import { ChatwootOptions, chatwootTasks } from '@typebot.io/schemas'
-import React from 'react'
+  chatwootTasks,
+  defaultChatwootOptions,
+} from "@typebot.io/blocks-integrations/chatwoot/constants";
+import type { ChatwootBlock } from "@typebot.io/blocks-integrations/chatwoot/schema";
+import { Accordion } from "@typebot.io/ui/components/Accordion";
+import { DebouncedTextInput } from "@typebot.io/ui/components/DebouncedTextInput";
+import { Field } from "@typebot.io/ui/components/Field";
+import { MoreInfoTooltip } from "@typebot.io/ui/components/MoreInfoTooltip";
+import { BasicSelect } from "@/components/inputs/BasicSelect";
+import { DebouncedTextInputWithVariablesButton } from "@/components/inputs/DebouncedTextInput";
 
 type Props = {
-  options: ChatwootOptions
-  onOptionsChange: (options: ChatwootOptions) => void
-}
+  options: ChatwootBlock["options"];
+  onOptionsChange: (options: ChatwootBlock["options"]) => void;
+};
 
 export const ChatwootSettings = ({ options, onOptionsChange }: Props) => {
-  const updateTask = (task: (typeof chatwootTasks)[number]) => {
-    onOptionsChange({ ...options, task })
-  }
+  const updateTask = (task: (typeof chatwootTasks)[number] | undefined) => {
+    onOptionsChange({ ...options, task });
+  };
+
+  const task = options?.task ?? defaultChatwootOptions.task;
 
   return (
-    <Stack spacing={4}>
-      <DropdownList
-        currentItem={options.task ?? 'Show widget'}
-        onItemSelect={updateTask}
+    <div className="flex flex-col gap-4">
+      <BasicSelect
+        className="w-full"
+        value={options?.task}
+        defaultValue={defaultChatwootOptions.task}
+        onChange={updateTask}
         items={chatwootTasks}
       />
-      {!options.task ||
-        (options.task === 'Show widget' && (
-          <>
-            <TextInput
-              isRequired
-              label="Base URL"
-              defaultValue={options.baseUrl}
-              onChange={(baseUrl: string) => {
-                onOptionsChange({ ...options, baseUrl })
+      {task === "Show widget" && (
+        <>
+          <Field.Root>
+            <Field.Label>Base URL</Field.Label>
+            <DebouncedTextInput
+              defaultValue={options?.baseUrl ?? defaultChatwootOptions.baseUrl}
+              onValueChange={(baseUrl: string) => {
+                onOptionsChange({ ...options, baseUrl });
               }}
-              withVariableButton={false}
             />
-            <TextInput
-              isRequired
-              label="Website token"
-              defaultValue={options.websiteToken}
-              onChange={(websiteToken) =>
+          </Field.Root>
+          <Field.Root>
+            <Field.Label>
+              Website token
+              <MoreInfoTooltip>
+                Can be found in Chatwoot under Settings &gt; Inboxes &gt;
+                Settings &gt; Configuration, in the code snippet.
+              </MoreInfoTooltip>
+            </Field.Label>
+            <DebouncedTextInputWithVariablesButton
+              defaultValue={options?.websiteToken}
+              onValueChange={(websiteToken) =>
                 onOptionsChange({ ...options, websiteToken })
               }
-              moreInfoTooltip="Can be found in Chatwoot under Settings > Inboxes > Settings > Configuration, in the code snippet."
             />
-            <Accordion allowMultiple>
-              <AccordionItem>
-                <AccordionButton justifyContent="space-between">
-                  Set user details
-                  <AccordionIcon />
-                </AccordionButton>
-                <AccordionPanel pb={4} as={Stack} spacing="4">
-                  <TextInput
-                    label="ID"
-                    defaultValue={options.user?.id}
-                    onChange={(id: string) => {
+          </Field.Root>
+          <Accordion.Root>
+            <Accordion.Item>
+              <Accordion.Trigger>Set user details</Accordion.Trigger>
+              <Accordion.Panel>
+                <Field.Root>
+                  <Field.Label>ID</Field.Label>
+                  <DebouncedTextInputWithVariablesButton
+                    defaultValue={options?.user?.id}
+                    onValueChange={(id: string) => {
                       onOptionsChange({
                         ...options,
-                        user: { ...options.user, id },
-                      })
+                        user: { ...options?.user, id },
+                      });
                     }}
                   />
-                  <TextInput
-                    label="Name"
-                    defaultValue={options.user?.name}
-                    onChange={(name: string) => {
+                </Field.Root>
+                <Field.Root>
+                  <Field.Label>Name</Field.Label>
+                  <DebouncedTextInputWithVariablesButton
+                    defaultValue={options?.user?.name}
+                    onValueChange={(name: string) => {
                       onOptionsChange({
                         ...options,
-                        user: { ...options.user, name },
-                      })
+                        user: { ...options?.user, name },
+                      });
                     }}
                   />
-                  <TextInput
-                    label="Email"
-                    defaultValue={options.user?.email}
-                    onChange={(email: string) => {
+                </Field.Root>
+                <Field.Root>
+                  <Field.Label>Email</Field.Label>
+                  <DebouncedTextInputWithVariablesButton
+                    defaultValue={options?.user?.email}
+                    onValueChange={(email: string) => {
                       onOptionsChange({
                         ...options,
-                        user: { ...options.user, email },
-                      })
+                        user: { ...options?.user, email },
+                      });
                     }}
                   />
-                  <TextInput
-                    label="Avatar URL"
-                    defaultValue={options.user?.avatarUrl}
-                    onChange={(avatarUrl: string) => {
+                </Field.Root>
+                <Field.Root>
+                  <Field.Label>Avatar URL</Field.Label>
+                  <DebouncedTextInputWithVariablesButton
+                    defaultValue={options?.user?.avatarUrl}
+                    onValueChange={(avatarUrl: string) => {
                       onOptionsChange({
                         ...options,
-                        user: { ...options.user, avatarUrl },
-                      })
+                        user: { ...options?.user, avatarUrl },
+                      });
                     }}
                   />
-                  <TextInput
-                    label="Phone number"
-                    defaultValue={options.user?.phoneNumber}
-                    onChange={(phoneNumber: string) => {
+                </Field.Root>
+                <Field.Root>
+                  <Field.Label>Phone number</Field.Label>
+                  <DebouncedTextInputWithVariablesButton
+                    defaultValue={options?.user?.phoneNumber}
+                    onValueChange={(phoneNumber: string) => {
                       onOptionsChange({
                         ...options,
-                        user: { ...options.user, phoneNumber },
-                      })
+                        user: { ...options?.user, phoneNumber },
+                      });
                     }}
                   />
-                </AccordionPanel>
-              </AccordionItem>
-            </Accordion>
-          </>
-        ))}
-    </Stack>
-  )
-}
+                </Field.Root>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion.Root>
+        </>
+      )}
+    </div>
+  );
+};

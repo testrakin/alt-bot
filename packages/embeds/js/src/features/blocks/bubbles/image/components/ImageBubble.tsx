@@ -1,84 +1,143 @@
-import { TypingBubble } from '@/components'
-import type { ImageBubbleContent } from '@typebot.io/schemas'
-import { createSignal, onCleanup, onMount } from 'solid-js'
+import { defaultImageBubbleContent } from "@typebot.io/blocks-bubbles/image/constants";
+import type { ImageBubbleBlock } from "@typebot.io/blocks-bubbles/image/schema";
+import { cx } from "@typebot.io/ui/lib/cva";
+import { createSignal, onCleanup, onMount } from "solid-js";
+import { Modal } from "../../../../../components/Modal";
+import { TypingBubble } from "../../../../../components/TypingBubble";
+import { sanitizeUrl } from "../../../../../lib/sanitizeUrl";
 
 type Props = {
-  content: ImageBubbleContent
-  onTransitionEnd: () => void
-}
+  content: ImageBubbleBlock["content"];
+  onTransitionEnd?: (ref?: HTMLDivElement) => void;
+};
 
-export const showAnimationDuration = 400
+export const showAnimationDuration = 400;
 
-export const mediaLoadingFallbackTimeout = 5000
+export const mediaLoadingFallbackTimeout = 5000;
 
-let typingTimeout: NodeJS.Timeout
+let typingTimeout: NodeJS.Timeout;
 
 export const ImageBubble = (props: Props) => {
-  let image: HTMLImageElement | undefined
-  const [isTyping, setIsTyping] = createSignal(true)
+  let ref: HTMLDivElement | undefined;
+  let image: HTMLImageElement | undefined;
+  const [isExpanded, setIsExpanded] = createSignal(false);
+  const [isTyping, setIsTyping] = createSignal(!!props.onTransitionEnd);
 
   const onTypingEnd = () => {
-    if (!isTyping()) return
-    setIsTyping(false)
+    if (!isTyping()) return;
+    setIsTyping(false);
     setTimeout(() => {
-      props.onTransitionEnd()
-    }, showAnimationDuration)
-  }
+      props.onTransitionEnd?.(ref);
+    }, showAnimationDuration);
+  };
 
   onMount(() => {
-    if (!image) return
-    typingTimeout = setTimeout(onTypingEnd, mediaLoadingFallbackTimeout)
+    if (!image) return;
+    typingTimeout = setTimeout(onTypingEnd, mediaLoadingFallbackTimeout);
     image.onload = () => {
-      clearTimeout(typingTimeout)
-      onTypingEnd()
-    }
-  })
+      clearTimeout(typingTimeout);
+      onTypingEnd();
+    };
+  });
 
   onCleanup(() => {
-    if (typingTimeout) clearTimeout(typingTimeout)
-  })
+    if (typingTimeout) clearTimeout(typingTimeout);
+  });
+
+  const openModal = () => {
+    setIsExpanded(true);
+  };
+
+  const closeModal = () => {
+    setIsExpanded(false);
+  };
 
   const Image = (
     <img
       ref={image}
-      src={props.content.url}
-      alt={props.content.clickLink?.alt ?? 'Bubble image'}
-      class={
-        'text-fade-in w-full ' + (isTyping() ? 'opacity-0' : 'opacity-100')
+      src={props.content?.url}
+      alt={
+        props.content?.clickLink?.alt ?? defaultImageBubbleContent.clickLink.alt
       }
+      class={cx(
+        isTyping() ? "opacity-0" : "opacity-100",
+        props.onTransitionEnd ? "text-fade-in" : undefined,
+        // w-full works on Chrome, but not on Firefox. Setting a fixed high width works on all browsers. 🤷‍♂️
+        props.content?.url?.endsWith(".svg") ? "w-96" : undefined,
+      )}
       style={{
-        'max-height': '512px',
-        height: isTyping() ? '32px' : 'auto',
+        width: props.content?.url?.startsWith("data:image/svg")
+          ? "100%"
+          : undefined,
+        "max-height": props.content?.url?.startsWith("data:image/svg")
+          ? "120px"
+          : "512px",
+        height: isTyping() ? "32px" : "auto",
       }}
+      elementtiming={"Bubble image"}
+      fetchpriority={"high"}
     />
-  )
+  );
 
   return (
-    <div class="flex flex-col animate-fade-in">
+    <div
+      class={cx(
+        "flex flex-col",
+        props.onTransitionEnd ? "animate-fade-in" : undefined,
+      )}
+      ref={ref}
+    >
       <div class="flex w-full items-center">
-        <div class={'flex relative z-10 items-start typebot-host-bubble'}>
+        <div class="flex relative z-10 items-start typebot-host-bubble max-w-full">
           <div
             class="flex items-center absolute px-4 py-2 bubble-typing z-10 "
             style={{
-              width: isTyping() ? '64px' : '100%',
-              height: isTyping() ? '32px' : '100%',
+              width: isTyping() ? "64px" : "100%",
+              height: isTyping() ? "32px" : "100%",
             }}
           >
             {isTyping() ? <TypingBubble /> : null}
           </div>
-          {props.content.clickLink ? (
+          {props.content?.clickLink ? (
             <a
-              href={props.content.clickLink.url}
+              href={
+                props.content.clickLink.url
+                  ? sanitizeUrl(props.content.clickLink.url)
+                  : "#"
+              }
               target="_blank"
-              class="p-4 z-10"
+              class={cx("z-10", isTyping() ? "h-8" : "p-4")}
+              rel="noreferrer"
             >
               {Image}
             </a>
           ) : (
-            <figure class="p-4 z-10">{Image}</figure>
+            <figure
+              class={cx(
+                "z-10 cursor-pointer",
+                isTyping() ? "h-8 @xs:h-9" : "p-4",
+              )}
+              on:click={
+                props.content?.url?.startsWith("data:image/svg")
+                  ? undefined
+                  : openModal
+              }
+            >
+              {Image}
+            </figure>
           )}
         </div>
       </div>
+      <Modal isOpen={isExpanded()} onClose={closeModal}>
+        <img
+          src={props.content?.url}
+          alt={
+            props.content?.clickLink?.alt ??
+            defaultImageBubbleContent.clickLink.alt
+          }
+          class="max-h-[calc(100vh-1rem)] max-w-[calc(100%-1rem)] rounded-[6px] m-auto"
+        />
+      </Modal>
     </div>
-  )
-}
+  );
+};

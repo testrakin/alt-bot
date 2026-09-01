@@ -1,37 +1,100 @@
-import { Stack, Text } from '@chakra-ui/react'
-import { VideoBubbleContent, VideoBubbleContentType } from '@typebot.io/schemas'
-import urlParser from 'js-video-url-parser/lib/base'
-import 'js-video-url-parser/lib/provider/vimeo'
-import 'js-video-url-parser/lib/provider/youtube'
-import { isDefined } from '@typebot.io/lib'
-import { TextInput } from '@/components/inputs'
+import { parseVideoUrl } from "@typebot.io/blocks-bubbles/video/helpers";
+import type { VideoBubbleBlock } from "@typebot.io/blocks-bubbles/video/schema";
+import { Button } from "@typebot.io/ui/components/Button";
+import { useState } from "react";
+import { PexelsPicker } from "@/components/VideoUploadContent/PexelsPicker";
+import { VideoLinkEmbedContent } from "@/components/VideoUploadContent/VideoLinkEmbedContent";
+
+type Tabs = "link" | "pexels";
 
 type Props = {
-  content?: VideoBubbleContent
-  onSubmit: (content: VideoBubbleContent) => void
-}
+  content?: VideoBubbleBlock["content"];
+  onSubmit: (content: VideoBubbleBlock["content"]) => void;
+  initialTab?: Tabs;
+} & (
+  | {
+      includedTabs?: Tabs[];
+    }
+  | {
+      excludedTabs?: Tabs[];
+    }
+);
 
-export const VideoUploadContent = ({ content, onSubmit }: Props) => {
-  const handleUrlChange = (url: string) => {
-    const info = urlParser.parse(url)
-    return isDefined(info) && info.provider && info.id
-      ? onSubmit({
-          type: info.provider as VideoBubbleContentType,
-          url,
-          id: info.id,
-        })
-      : onSubmit({ type: VideoBubbleContentType.URL, url })
-  }
+const defaultDisplayedTabs: Tabs[] = ["link", "pexels"];
+
+export const VideoUploadContent = ({
+  content,
+  onSubmit,
+  initialTab,
+  ...props
+}: Props) => {
+  const includedTabs =
+    "includedTabs" in props
+      ? (props.includedTabs ?? defaultDisplayedTabs)
+      : defaultDisplayedTabs;
+  const excludedTabs =
+    "excludedTabs" in props ? (props.excludedTabs ?? []) : [];
+  const displayedTabs = defaultDisplayedTabs.filter(
+    (tab) => !excludedTabs.includes(tab) && includedTabs.includes(tab),
+  );
+
+  const [currentTab, setCurrentTab] = useState<Tabs>(
+    initialTab ?? displayedTabs[0],
+  );
+
+  const updateUrl = (url: string) => {
+    const {
+      type,
+      url: matchedUrl,
+      id,
+      videoSizeSuggestion,
+    } = parseVideoUrl(url);
+    if (currentTab !== "link") {
+      // Allow user to update video settings after selection
+      setCurrentTab("link");
+    }
+    return onSubmit({
+      ...content,
+      type,
+      url: matchedUrl,
+      id,
+      ...(!content?.aspectRatio && !content?.maxWidth
+        ? videoSizeSuggestion
+        : {}),
+    });
+  };
+
   return (
-    <Stack p="2">
-      <TextInput
-        placeholder="Paste the video link..."
-        defaultValue={content?.url ?? ''}
-        onChange={handleUrlChange}
-      />
-      <Text fontSize="sm" color="gray.400" textAlign="center">
-        Works with Youtube, Vimeo and others
-      </Text>
-    </Stack>
-  )
-}
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        {displayedTabs.includes("link") && (
+          <Button
+            variant={currentTab === "link" ? "outline" : "ghost"}
+            onClick={() => setCurrentTab("link")}
+            size="sm"
+          >
+            Link
+          </Button>
+        )}
+        {displayedTabs.includes("pexels") && (
+          <Button
+            variant={currentTab === "pexels" ? "outline" : "ghost"}
+            onClick={() => setCurrentTab("pexels")}
+            size="sm"
+          >
+            Pexels
+          </Button>
+        )}
+      </div>
+      {/* Body content to be displayed below conditionally based on currentTab */}
+      {currentTab === "link" && (
+        <VideoLinkEmbedContent
+          content={content}
+          updateUrl={updateUrl}
+          onSubmit={onSubmit}
+        />
+      )}
+      {currentTab === "pexels" && <PexelsPicker onVideoSelect={updateUrl} />}
+    </div>
+  );
+};

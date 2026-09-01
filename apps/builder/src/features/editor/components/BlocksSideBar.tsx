@@ -1,190 +1,365 @@
+import { useTranslate } from "@tolgee/react";
+import { BubbleBlockType } from "@typebot.io/blocks-bubbles/constants";
+import type { BlockV6 } from "@typebot.io/blocks-core/schemas/schema";
+import { InputBlockType } from "@typebot.io/blocks-inputs/constants";
+import { IntegrationBlockType } from "@typebot.io/blocks-integrations/constants";
+import { LogicBlockType } from "@typebot.io/blocks-logic/constants";
+import { env } from "@typebot.io/env";
+import { EventType } from "@typebot.io/events/constants";
+import type { TDraggableEvent } from "@typebot.io/events/schemas";
+import { forgedBlocks } from "@typebot.io/forge-repository/definitions";
+import { isDefined } from "@typebot.io/lib/utils";
+import { Input } from "@typebot.io/ui/components/Input";
+import { Tooltip } from "@typebot.io/ui/components/Tooltip";
+import { SquareLock01Icon } from "@typebot.io/ui/icons/SquareLock01Icon";
+import { SquareUnlock01Icon } from "@typebot.io/ui/icons/SquareUnlock01Icon";
+import { cx } from "@typebot.io/ui/lib/cva";
+import type React from "react";
+import { useRef, useState } from "react";
+import { useDebouncedCallback } from "use-debounce";
+import { Portal } from "@/components/Portal";
+import { useBlockDnd } from "@/features/graph/providers/GraphDndProvider";
+import { useEventListener } from "@/hooks/useEventListener";
+import { EventCard } from "../../events/components/EventCard";
+import { EventCardOverlay } from "../../events/components/EventCardOverlay";
+import { getEventBlockLabel } from "../../events/components/EventLabel";
+import { leftSidebarLockedStorageKey } from "../constants";
+import { BlockCard } from "./BlockCard";
+import { BlockCardOverlay } from "./BlockCardOverlay";
 import {
-  Stack,
-  Text,
-  SimpleGrid,
-  useEventListener,
-  Portal,
-  Flex,
-  IconButton,
-  Tooltip,
-  Fade,
-  useColorModeValue,
-} from '@chakra-ui/react'
-import {
-  BubbleBlockType,
-  DraggableBlockType,
-  InputBlockType,
-  IntegrationBlockType,
-  LogicBlockType,
-} from '@typebot.io/schemas'
-import { useBlockDnd } from '@/features/graph/providers/GraphDndProvider'
-import React, { useState } from 'react'
-import { BlockCard } from './BlockCard'
-import { LockedIcon, UnlockedIcon } from '@/components/icons'
-import { BlockCardOverlay } from './BlockCardOverlay'
-import { headerHeight } from '../constants'
+  getBubbleBlockLabel,
+  getInputBlockLabel,
+  getIntegrationBlockLabel,
+  getLogicBlockLabel,
+} from "./BlockLabel";
+
+// Integration blocks migrated to forged blocks
+const legacyIntegrationBlocks = [IntegrationBlockType.OPEN_AI];
 
 export const BlocksSideBar = () => {
-  const { setDraggedBlockType, draggedBlockType } = useBlockDnd()
+  const { t } = useTranslate();
+  const {
+    setDraggedBlockType,
+    draggedBlockType,
+    draggedEventType,
+    setDraggedEventType,
+  } = useBlockDnd();
   const [position, setPosition] = useState({
     x: 0,
     y: 0,
-  })
-  const [relativeCoordinates, setRelativeCoordinates] = useState({ x: 0, y: 0 })
-  const [isLocked, setIsLocked] = useState(true)
-  const [isExtended, setIsExtended] = useState(true)
+  });
+  const [relativeCoordinates, setRelativeCoordinates] = useState({
+    x: 0,
+    y: 0,
+  });
+  const [isLocked, setIsLocked] = useState(
+    localStorage.getItem(leftSidebarLockedStorageKey) !== "false",
+  );
+  const [isExtended, setIsExtended] = useState(
+    localStorage.getItem(leftSidebarLockedStorageKey) !== "false",
+  );
+  const [searchInput, setSearchInput] = useState("");
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const dockBarRef = useRef<HTMLButtonElement>(null);
 
-  const handleMouseMove = (event: MouseEvent) => {
-    if (!draggedBlockType) return
-    const { clientX, clientY } = event
-    setPosition({
-      ...position,
-      x: clientX - relativeCoordinates.x,
-      y: clientY - relativeCoordinates.y,
-    })
-  }
-  useEventListener('mousemove', handleMouseMove)
+  const closeSideBar = useDebouncedCallback(() => setIsExtended(false), 200);
 
-  const handleMouseDown = (e: React.MouseEvent, type: DraggableBlockType) => {
-    const element = e.currentTarget as HTMLDivElement
-    const rect = element.getBoundingClientRect()
-    setPosition({ x: rect.left, y: rect.top })
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    setRelativeCoordinates({ x, y })
-    setDraggedBlockType(type)
-  }
+  const handlePointerMove = (event: PointerEvent) => {
+    if ((draggedBlockType || draggedEventType) && !event.isPrimary) return;
+    const { clientX, clientY } = event;
+    if (draggedBlockType || draggedEventType) {
+      setPosition({
+        x: clientX - relativeCoordinates.x,
+        y: clientY - relativeCoordinates.y,
+      });
+    }
+    if (isLocked) return;
+    if (isMouseInElement(sidebarRef.current, clientX, clientY)) {
+      closeSideBar.flush();
+      return;
+    }
+    if (isMouseInElement(dockBarRef.current, clientX, clientY)) {
+      closeSideBar.flush();
+      setIsExtended(true);
+      return;
+    }
+    if (clientX < 100) return;
+    closeSideBar();
+  };
+  useEventListener("pointermove", handlePointerMove);
 
-  const handleMouseUp = () => {
-    if (!draggedBlockType) return
-    setDraggedBlockType(undefined)
+  const initBlockDragging = (e: React.PointerEvent, type: BlockV6["type"]) => {
+    if (!e.isPrimary || e.button !== 0) return;
+    const element = e.currentTarget as HTMLElement;
+    const rect = element.getBoundingClientRect();
+    setPosition({ x: rect.left, y: rect.top });
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setRelativeCoordinates({ x, y });
+    setDraggedBlockType(type);
+  };
+
+  const initEventDragging = (
+    e: React.PointerEvent,
+    type: TDraggableEvent["type"],
+  ) => {
+    if (!e.isPrimary || e.button !== 0) return;
+    const element = e.currentTarget as HTMLElement;
+    const rect = element.getBoundingClientRect();
+    setPosition({ x: rect.left, y: rect.top });
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setRelativeCoordinates({ x, y });
+    setDraggedEventType(type);
+  };
+
+  const handlePointerDragEnd = (event: PointerEvent) => {
+    if (!event.isPrimary) return;
+    if (!draggedBlockType && !draggedEventType) return;
+    setDraggedBlockType(undefined);
+    setDraggedEventType(undefined);
     setPosition({
       x: 0,
       y: 0,
+    });
+  };
+  useEventListener("pointerup", handlePointerDragEnd);
+  useEventListener("pointercancel", handlePointerDragEnd);
+
+  const handleLockClick = () => {
+    try {
+      localStorage.setItem(leftSidebarLockedStorageKey, String(!isLocked));
+    } catch (error) {
+      console.error(error);
+    }
+    setIsLocked(!isLocked);
+  };
+
+  const handleSearchInputChange = (event: {
+    target: { value: React.SetStateAction<string> };
+  }) => {
+    setSearchInput(event.target.value);
+  };
+
+  const filteredForgedBlockIds = Object.values(forgedBlocks)
+    .filter((block) => {
+      return (
+        block.id.toLowerCase().includes(searchInput.toLowerCase()) ||
+        block.tags?.some((tag: string) =>
+          tag.toLowerCase().includes(searchInput.toLowerCase()),
+        ) ||
+        block.name.toLowerCase().includes(searchInput.toLowerCase())
+      );
     })
-  }
-  useEventListener('mouseup', handleMouseUp)
+    .map((block) => block.id);
 
-  const handleLockClick = () => setIsLocked(!isLocked)
+  const filteredBubbleBlockTypes = Object.values(BubbleBlockType).filter(
+    (type) =>
+      getBubbleBlockLabel(t)
+        [type].toLowerCase()
+        .includes(searchInput.toLowerCase()),
+  );
 
-  const handleDockBarEnter = () => setIsExtended(true)
+  const filteredInputBlockTypes = Object.values(InputBlockType).filter(
+    (type) => {
+      return getInputBlockLabel(t)
+        [type].toLowerCase()
+        .includes(searchInput.toLowerCase());
+    },
+  );
 
-  const handleMouseLeave = () => {
-    if (isLocked) return
-    setIsExtended(false)
-  }
+  const filteredLogicBlockTypes = Object.values(LogicBlockType).filter(
+    (type) =>
+      type === LogicBlockType.WEBHOOK
+        ? isDefined(env.NEXT_PUBLIC_PARTYKIT_HOST)
+        : true &&
+          getLogicBlockLabel(t)
+            [type].toLowerCase()
+            .includes(searchInput.toLowerCase()),
+  );
+
+  const filteredEventBlockTypes = Object.values(EventType).filter((type) =>
+    getEventBlockLabel(t)
+      [type].toLowerCase()
+      .includes(searchInput.toLowerCase()),
+  );
+
+  const filteredIntegrationBlockTypes = Object.values(
+    IntegrationBlockType,
+  ).filter(
+    (type) =>
+      getIntegrationBlockLabel(t)
+        [type].toLowerCase()
+        .includes(searchInput.toLowerCase()) &&
+      !legacyIntegrationBlocks.includes(type),
+  );
 
   return (
-    <Flex
-      w="360px"
-      pos="absolute"
-      left="0"
-      h={`calc(100vh - ${headerHeight}px)`}
-      zIndex="2"
-      pl="4"
-      py="4"
-      onMouseLeave={handleMouseLeave}
-      transform={isExtended ? 'translateX(0)' : 'translateX(-350px)'}
-      transition="transform 350ms cubic-bezier(0.075, 0.82, 0.165, 1) 0s"
+    <div
+      ref={sidebarRef}
+      className={cx(
+        "flex w-[360px] absolute pl-4 py-4 left-0 transition-transform duration-150 ease-out h-[calc(100vh-var(--header-height))]",
+        isExtended ? "translate-x-0" : "translate-x-[-350px]",
+      )}
     >
-      <Stack
-        w="full"
-        rounded="lg"
-        shadow="xl"
-        borderWidth="1px"
-        pt="2"
-        pb="10"
-        px="4"
-        bgColor={useColorModeValue('white', 'gray.900')}
-        spacing={6}
-        userSelect="none"
-        overflowY="scroll"
-        className="hide-scrollbar"
-      >
-        <Flex justifyContent="flex-end">
-          <Tooltip label={isLocked ? 'Unlock sidebar' : 'Lock sidebar'}>
-            <IconButton
-              icon={isLocked ? <LockedIcon /> : <UnlockedIcon />}
-              aria-label={isLocked ? 'Unlock' : 'Lock'}
-              size="sm"
+      <div className="flex flex-col w-full rounded-lg border pt-4 pb-10 px-4 gap-6 overflow-y-auto bg-gray-1 select-none">
+        <div className="flex justify-between w-full items-center gap-3">
+          <Input
+            placeholder="Search"
+            value={searchInput}
+            onChange={handleSearchInputChange}
+          />
+          <Tooltip.Root>
+            <Tooltip.TriggerButton
+              aria-label={
+                isLocked
+                  ? t("editor.sidebarBlocks.sidebar.icon.unlock.label")
+                  : t("editor.sidebarBlocks.sidebar.icon.lock.label")
+              }
+              size="icon"
+              variant="secondary"
+              className="size-8"
               onClick={handleLockClick}
-            />
-          </Tooltip>
-        </Flex>
+            >
+              {isLocked ? <SquareLock01Icon /> : <SquareUnlock01Icon />}
+            </Tooltip.TriggerButton>
+            <Tooltip.Popup>
+              {isLocked
+                ? t("editor.sidebarBlocks.sidebar.unlock.label")
+                : t("editor.sidebarBlocks.sidebar.lock.label")}
+            </Tooltip.Popup>
+          </Tooltip.Root>
+        </div>
 
-        <Stack>
-          <Text fontSize="sm" fontWeight="semibold">
-            Bubbles
-          </Text>
-          <SimpleGrid columns={2} spacing="3">
-            {Object.values(BubbleBlockType).map((type) => (
-              <BlockCard key={type} type={type} onMouseDown={handleMouseDown} />
+        <div className="flex flex-col gap-2">
+          <h4 className="text-sm">
+            {t("editor.sidebarBlocks.blockType.bubbles.heading")}
+          </h4>
+          <div className="grid gap-3 grid-cols-2">
+            {filteredBubbleBlockTypes.map((type) => (
+              <BlockCard
+                key={type}
+                type={type}
+                onPointerDown={initBlockDragging}
+              />
             ))}
-          </SimpleGrid>
-        </Stack>
+          </div>
+        </div>
 
-        <Stack>
-          <Text fontSize="sm" fontWeight="semibold">
-            Inputs
-          </Text>
-          <SimpleGrid columns={2} spacing="3">
-            {Object.values(InputBlockType).map((type) => (
-              <BlockCard key={type} type={type} onMouseDown={handleMouseDown} />
+        <div className="flex flex-col gap-2">
+          <h4 className="text-sm">
+            {t("editor.sidebarBlocks.blockType.inputs.heading")}
+          </h4>
+          <div className="grid gap-3 grid-cols-2">
+            {filteredInputBlockTypes.map((type) => (
+              <BlockCard
+                key={type}
+                type={type}
+                onPointerDown={initBlockDragging}
+              />
             ))}
-          </SimpleGrid>
-        </Stack>
+          </div>
+        </div>
 
-        <Stack>
-          <Text fontSize="sm" fontWeight="semibold">
-            Logic
-          </Text>
-          <SimpleGrid columns={2} spacing="3">
-            {Object.values(LogicBlockType).map((type) => (
-              <BlockCard key={type} type={type} onMouseDown={handleMouseDown} />
+        <div className="flex flex-col gap-2">
+          <h4 className="text-sm">
+            {t("editor.sidebarBlocks.blockType.logic.heading")}
+          </h4>
+          <div className="grid gap-3 grid-cols-2">
+            {filteredLogicBlockTypes.map((type) => (
+              <BlockCard
+                key={type}
+                type={type}
+                onPointerDown={initBlockDragging}
+              />
             ))}
-          </SimpleGrid>
-        </Stack>
+          </div>
+        </div>
 
-        <Stack>
-          <Text fontSize="sm" fontWeight="semibold">
-            Integrations
-          </Text>
-          <SimpleGrid columns={2} spacing="3">
-            {Object.values(IntegrationBlockType).map((type) => (
-              <BlockCard key={type} type={type} onMouseDown={handleMouseDown} />
+        <div className="flex flex-col gap-2">
+          <h4 className="text-sm">
+            {t("editor.sidebarBlocks.blockType.events.heading")}
+          </h4>
+          <div className="grid gap-3 grid-cols-2">
+            {filteredEventBlockTypes.map((type) => (
+              <EventCard
+                key={type}
+                type={type}
+                onPointerDown={initEventDragging}
+              />
             ))}
-          </SimpleGrid>
-        </Stack>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <h4 className="text-sm">
+            {t("editor.sidebarBlocks.blockType.integrations.heading")}
+          </h4>
+          <div className="grid gap-3 grid-cols-2">
+            {filteredIntegrationBlockTypes
+              .concat(filteredForgedBlockIds as any)
+              .map((type) => (
+                <BlockCard
+                  key={type}
+                  type={type}
+                  onPointerDown={initBlockDragging}
+                />
+              ))}
+          </div>
+        </div>
 
         {draggedBlockType && (
           <Portal>
             <BlockCardOverlay
               type={draggedBlockType}
-              onMouseUp={handleMouseUp}
-              pos="fixed"
-              top="0"
-              left="0"
+              className="fixed top-0 left-0"
               style={{
                 transform: `translate(${position.x}px, ${position.y}px) rotate(-2deg)`,
               }}
             />
           </Portal>
         )}
-      </Stack>
-      <Fade in={!isLocked} unmountOnExit>
-        <Flex
-          pos="absolute"
-          h="100%"
-          right="-50px"
-          w="50px"
-          top="0"
-          justify="center"
-          align="center"
-          onMouseEnter={handleDockBarEnter}
+        {draggedEventType && (
+          <Portal>
+            <EventCardOverlay
+              type={draggedEventType}
+              className="fixed top-0 left-0"
+              style={{
+                transform: `translate(${position.x}px, ${position.y}px) rotate(-2deg)`,
+              }}
+            />
+          </Portal>
+        )}
+      </div>
+      {!isLocked && (
+        <button
+          ref={dockBarRef}
+          type="button"
+          aria-label="Open blocks sidebar"
+          className="flex animate-in fade-in-0 absolute h-full w-[450px] justify-end pr-10 items-center -right-[70px] top-0 -z-10"
+          onFocus={() => {
+            closeSideBar.flush();
+            setIsExtended(true);
+          }}
         >
-          <Flex w="5px" h="20px" bgColor="gray.400" rounded="md" />
-        </Flex>
-      </Fade>
-    </Flex>
-  )
-}
+          <span className="flex w-[5px] h-[20px] rounded-md bg-gray-7" />
+        </button>
+      )}
+    </div>
+  );
+};
+
+const isMouseInElement = (
+  element: HTMLElement | null,
+  clientX: number,
+  clientY: number,
+) => {
+  if (!element) return false;
+  const rect = element.getBoundingClientRect();
+  return (
+    clientX >= rect.left &&
+    clientX <= rect.right &&
+    clientY >= rect.top &&
+    clientY <= rect.bottom
+  );
+};

@@ -1,120 +1,154 @@
-import { Flex, useColorModeValue } from '@chakra-ui/react'
-import { useTypebot } from '@/features/editor/providers/TypebotProvider'
-import {
-  ChoiceInputBlock,
+import type {
   Item,
   ItemIndices,
-  ItemType,
-} from '@typebot.io/schemas'
-import React, { useRef, useState } from 'react'
-import { SourceEndpoint } from '../../endpoints/SourceEndpoint'
-import { ItemNodeContent } from './ItemNodeContent'
-import { ItemNodeContextMenu } from './ItemNodeContextMenu'
-import { ContextMenu } from '@/components/ContextMenu'
-import { isDefined } from '@typebot.io/lib'
-import { Coordinates } from '@/features/graph/types'
+} from "@typebot.io/blocks-core/schemas/items/schema";
+import type { BlockWithItems } from "@typebot.io/blocks-core/schemas/schema";
+import { InputBlockType } from "@typebot.io/blocks-inputs/constants";
+import { LogicBlockType } from "@typebot.io/blocks-logic/constants";
+import { isDefined } from "@typebot.io/lib/utils";
+import { ContextMenu } from "@typebot.io/ui/components/ContextMenu";
+import { cx } from "@typebot.io/ui/lib/cva";
+import { useRouter } from "next/router";
+import { useRef, useState } from "react";
+import { ConditionContent } from "@/features/blocks/logic/condition/components/ConditionContent";
+import { useTypebot } from "@/features/editor/providers/TypebotProvider";
 import {
-  DraggabbleItem,
-  NodePosition,
+  type DraggableItem,
+  type NodePosition,
   useDragDistance,
-} from '@/features/graph/providers/GraphDndProvider'
-import { useGraph } from '@/features/graph/providers/GraphProvider'
-import { setMultipleRefs } from '@/helpers/setMultipleRefs'
+} from "@/features/graph/providers/GraphDndProvider";
+import { useGraph } from "@/features/graph/providers/GraphProvider";
+import type { Coordinates } from "@/features/graph/types";
+import { BlockSourceEndpoint } from "../../endpoints/BlockSourceEndpoint";
+import { ItemNodeContent } from "./ItemNodeContent";
+import { ItemNodeContextMenuPopup } from "./ItemNodeContextMenuPopup";
 
 type Props = {
-  item: Item
-  indices: ItemIndices
+  item: Item;
+  block: BlockWithItems;
+  indices: ItemIndices;
   onMouseDown?: (
     blockNodePosition: { absolute: Coordinates; relative: Coordinates },
-    item: DraggabbleItem
-  ) => void
-  connectionDisabled?: boolean
-}
+    item: DraggableItem,
+  ) => void;
+  connectionDisabled?: boolean;
+};
 
 export const ItemNode = ({
   item,
+  block,
   indices,
   onMouseDown,
   connectionDisabled,
 }: Props) => {
-  const previewingBorderColor = useColorModeValue('blue.400', 'blue.300')
-  const borderColor = useColorModeValue('gray.200', 'gray.700')
-  const bg = useColorModeValue('white', 'gray.850')
-  const { typebot } = useTypebot()
-  const { previewingEdge } = useGraph()
-  const [isMouseOver, setIsMouseOver] = useState(false)
-  const itemRef = useRef<HTMLDivElement | null>(null)
-  const isPreviewing = previewingEdge?.from.itemId === item.id
+  const { typebot } = useTypebot();
+  const { previewingEdge } = useGraph();
+  const { pathname } = useRouter();
+  const [isMouseOver, setIsMouseOver] = useState(false);
+  const [isContextMenuOpened, setIsContextMenuOpened] = useState(false);
+  const itemRef = useRef<HTMLDivElement | null>(null);
+  const isPreviewing =
+    previewingEdge &&
+    "itemId" in previewingEdge.from &&
+    previewingEdge.from.itemId === item.id;
   const isConnectable =
     isDefined(typebot) &&
     !connectionDisabled &&
+    block.type !== InputBlockType.CARDS &&
     !(
-      typebot.groups[indices.groupIndex].blocks[indices.blockIndex] as
-        | ChoiceInputBlock
-        | undefined
-    )?.options?.isMultipleChoice
+      block.options &&
+      "isMultipleChoice" in block.options &&
+      block.options.isMultipleChoice
+    );
   const onDrag = (position: NodePosition) => {
-    if (!onMouseDown || item.type === ItemType.AB_TEST) return
-    onMouseDown(position, item)
-  }
+    if (!onMouseDown || block.type === LogicBlockType.AB_TEST) return;
+    onMouseDown(position, { ...item, type: block.type, blockId: block.id });
+  };
   useDragDistance({
     ref: itemRef,
     onDrag,
     isDisabled: !onMouseDown,
-  })
+  });
 
-  const handleMouseEnter = () => setIsMouseOver(true)
-  const handleMouseLeave = () => setIsMouseOver(false)
+  const handleMouseEnter = () => setIsMouseOver(true);
+  const handleMouseLeave = () => setIsMouseOver(false);
+
+  const groupId = typebot?.groups.at(indices.groupIndex)?.id;
+
+  const displayCondition = getDisplayCondition(item);
 
   return (
-    <ContextMenu<HTMLDivElement>
-      renderMenu={() => <ItemNodeContextMenu indices={indices} />}
-    >
-      {(ref, isContextMenuOpened) => (
-        <Flex
+    <ContextMenu.Root onOpenChange={setIsContextMenuOpened}>
+      <ContextMenu.Trigger>
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: This item container is a draggable graph surface with nested controls, not a standalone HTML action. */}
+        <div
+          className="flex flex-col gap-2 relative w-full"
           data-testid="item"
-          pos="relative"
-          ref={setMultipleRefs([ref, itemRef])}
-          w="full"
+          ref={itemRef}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
         >
-          <Flex
-            align="center"
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            shadow="sm"
-            _hover={{ shadow: 'md' }}
-            transition="box-shadow 200ms, border-color 200ms"
-            rounded="md"
-            bg={bg}
-            borderWidth={isContextMenuOpened || isPreviewing ? '2px' : '1px'}
-            borderColor={
-              isContextMenuOpened || isPreviewing
-                ? previewingBorderColor
-                : borderColor
-            }
-            margin={isContextMenuOpened || isPreviewing ? '-1px' : 0}
-            w="full"
-          >
-            <ItemNodeContent
-              item={item}
-              isMouseOver={isMouseOver}
-              indices={indices}
+          {displayCondition && (
+            <ConditionContent
+              condition={displayCondition}
+              variables={typebot?.variables ?? []}
+              size="xs"
+              displaySemicolon
             />
-            {typebot && isConnectable && (
-              <SourceEndpoint
-                source={{
-                  groupId: typebot.groups[indices.groupIndex].id,
-                  blockId: item.blockId,
-                  itemId: item.id,
-                }}
-                pos="absolute"
-                right="-49px"
-                pointerEvents="all"
+          )}
+          <div
+            className={cx(
+              "flex items-center rounded-md border w-full transition-all bg-gray-1",
+              isContextMenuOpened || isPreviewing
+                ? "border-orange-8"
+                : undefined,
+            )}
+          >
+            {groupId && (
+              <ItemNodeContent
+                blockId={block.id}
+                groupId={groupId}
+                blockType={block.type}
+                item={item}
+                isMouseOver={isMouseOver}
+                indices={indices}
               />
             )}
-          </Flex>
-        </Flex>
-      )}
-    </ContextMenu>
+            {typebot &&
+              (isConnectable || pathname.endsWith("analytics")) &&
+              groupId && (
+                <BlockSourceEndpoint
+                  source={{
+                    blockId: block.id,
+                    itemId: item.id,
+                  }}
+                  groupId={groupId}
+                  className="absolute right-[-49px] bottom-[9px] pointer-events-[all]"
+                  isHidden={!isConnectable}
+                />
+              )}
+          </div>
+        </div>
+      </ContextMenu.Trigger>
+      <ItemNodeContextMenuPopup indices={indices} />
+    </ContextMenu.Root>
+  );
+};
+
+const getDisplayCondition = (item: Item) => {
+  if (
+    "displayCondition" in item &&
+    item.displayCondition?.isEnabled &&
+    item.displayCondition.condition
   )
-}
+    return item.displayCondition.condition;
+  if (
+    "options" in item &&
+    item.options &&
+    "displayCondition" in item.options &&
+    item.options.displayCondition?.isEnabled &&
+    item.options.displayCondition.condition
+  )
+    return item.options.displayCondition.condition;
+  return;
+};

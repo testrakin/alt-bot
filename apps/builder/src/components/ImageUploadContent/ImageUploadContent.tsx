@@ -1,171 +1,233 @@
-import { useState } from 'react'
-import { Button, Flex, HStack, Stack } from '@chakra-ui/react'
-import { UploadButton } from './UploadButton'
-import { GiphyPicker } from './GiphyPicker'
-import { TextInput } from '../inputs/TextInput'
-import { EmojiSearchableList } from './emoji/EmojiSearchableList'
-import { UnsplashPicker } from './UnsplashPicker'
+import { useTranslate } from "@tolgee/react";
+import { Button } from "@typebot.io/ui/components/Button";
+import { DebouncedTextInput } from "@typebot.io/ui/components/DebouncedTextInput";
+import { useState } from "react";
+import type { FilePathUploadProps } from "@/features/upload/api/generateUploadUrl";
+import { DebouncedTextInputWithVariablesButton } from "../inputs/DebouncedTextInput";
+import { EmojiSearchableList } from "./emoji/EmojiSearchableList";
+import { GiphyPicker } from "./GiphyPicker";
+import { IconPicker } from "./IconPicker";
+import { UnsplashPicker } from "./UnsplashPicker";
+import { UploadButton } from "./UploadButton";
 
-type Tabs = 'link' | 'upload' | 'giphy' | 'emoji' | 'unsplash'
+type PermanentTabs = "link" | "upload";
+type AdditionalTabs = "giphy" | "emoji" | "unsplash" | "icon";
+type Tabs = PermanentTabs | AdditionalTabs;
 
 type Props = {
-  filePath: string
-  includeFileName?: boolean
-  defaultUrl?: string
-  isEmojiEnabled?: boolean
-  isGiphyEnabled?: boolean
-  isUnsplashEnabled?: boolean
-  imageSize?: 'small' | 'regular' | 'thumb'
-  onSubmit: (url: string) => void
-  onClose?: () => void
-}
+  uploadFileProps: FilePathUploadProps | undefined;
+  defaultUrl?: string;
+  imageSize?: "small" | "regular" | "thumb";
+  initialTab?: Tabs;
+  linkWithVariableButton?: boolean;
+  additionalTabs?: Partial<Record<AdditionalTabs, boolean>>;
+  onDelete?: () => void;
+  onSubmit: (url: string) => void;
+  onClose?: () => void;
+};
 
 export const ImageUploadContent = ({
-  filePath,
-  includeFileName,
+  uploadFileProps,
   defaultUrl,
   onSubmit,
-  isEmojiEnabled = false,
-  isGiphyEnabled = true,
-  isUnsplashEnabled = true,
-  imageSize = 'regular',
+  imageSize = "regular",
   onClose,
+  initialTab,
+  linkWithVariableButton,
+  additionalTabs,
+  onDelete,
 }: Props) => {
+  const displayedTabs = [
+    "link",
+    "upload",
+    ...Object.keys(additionalTabs ?? {}).filter(
+      (tab) => additionalTabs?.[tab as AdditionalTabs],
+    ),
+  ];
+
   const [currentTab, setCurrentTab] = useState<Tabs>(
-    isEmojiEnabled ? 'emoji' : 'link'
-  )
+    initialTab ?? (displayedTabs[0] as Tabs),
+  );
 
   const handleSubmit = (url: string) => {
-    onSubmit(url)
-    onClose && onClose()
-  }
+    onSubmit(url);
+    onClose?.();
+  };
 
   return (
-    <Stack>
-      <HStack>
-        {isEmojiEnabled && (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        {displayedTabs.includes("link") && (
           <Button
-            variant={currentTab === 'emoji' ? 'solid' : 'ghost'}
-            onClick={() => setCurrentTab('emoji')}
+            variant={currentTab === "link" ? "outline" : "ghost"}
+            onClick={() => setCurrentTab("link")}
+            size="sm"
+          >
+            Link
+          </Button>
+        )}
+        {displayedTabs.includes("upload") && (
+          <Button
+            variant={currentTab === "upload" ? "outline" : "ghost"}
+            onClick={() => setCurrentTab("upload")}
+            size="sm"
+          >
+            Upload
+          </Button>
+        )}
+        {displayedTabs.includes("emoji") && (
+          <Button
+            variant={currentTab === "emoji" ? "outline" : "ghost"}
+            onClick={() => setCurrentTab("emoji")}
             size="sm"
           >
             Emoji
           </Button>
         )}
-        <Button
-          variant={currentTab === 'link' ? 'solid' : 'ghost'}
-          onClick={() => setCurrentTab('link')}
-          size="sm"
-        >
-          Embed link
-        </Button>
-        <Button
-          variant={currentTab === 'upload' ? 'solid' : 'ghost'}
-          onClick={() => setCurrentTab('upload')}
-          size="sm"
-        >
-          Upload
-        </Button>
-        {isGiphyEnabled && (
+        {displayedTabs.includes("giphy") && (
           <Button
-            variant={currentTab === 'giphy' ? 'solid' : 'ghost'}
-            onClick={() => setCurrentTab('giphy')}
+            variant={currentTab === "giphy" ? "outline" : "ghost"}
+            onClick={() => setCurrentTab("giphy")}
             size="sm"
           >
             Giphy
           </Button>
         )}
-        {isUnsplashEnabled && (
+        {displayedTabs.includes("unsplash") && (
           <Button
-            variant={currentTab === 'unsplash' ? 'solid' : 'ghost'}
-            onClick={() => setCurrentTab('unsplash')}
+            variant={currentTab === "unsplash" ? "outline" : "ghost"}
+            onClick={() => setCurrentTab("unsplash")}
             size="sm"
           >
             Unsplash
           </Button>
         )}
-      </HStack>
-
+        {displayedTabs.includes("icon") && (
+          <Button
+            variant={currentTab === "icon" ? "outline" : "ghost"}
+            onClick={() => setCurrentTab("icon")}
+            size="sm"
+          >
+            Icon
+          </Button>
+        )}
+      </div>
       <BodyContent
-        filePath={filePath}
-        includeFileName={includeFileName}
+        uploadFileProps={uploadFileProps}
         tab={currentTab}
         imageSize={imageSize}
         onSubmit={handleSubmit}
         defaultUrl={defaultUrl}
+        linkWithVariableButton={linkWithVariableButton}
+        onDelete={onDelete}
       />
-    </Stack>
-  )
-}
+    </div>
+  );
+};
 
 const BodyContent = ({
-  includeFileName,
-  filePath,
+  uploadFileProps,
   tab,
   defaultUrl,
   imageSize,
+  linkWithVariableButton,
   onSubmit,
+  onDelete,
 }: {
-  includeFileName?: boolean
-  filePath: string
-  tab: Tabs
-  defaultUrl?: string
-  imageSize: 'small' | 'regular' | 'thumb'
-  onSubmit: (url: string) => void
+  uploadFileProps?: FilePathUploadProps;
+  tab: Tabs;
+  defaultUrl?: string;
+  imageSize: "small" | "regular" | "thumb";
+  linkWithVariableButton?: boolean;
+  onSubmit: (url: string) => void;
+  onDelete?: () => void;
 }) => {
   switch (tab) {
-    case 'upload':
+    case "upload": {
+      if (!uploadFileProps) return null;
       return (
         <UploadFileContent
-          filePath={filePath}
-          includeFileName={includeFileName}
+          uploadFileProps={uploadFileProps}
           onNewUrl={onSubmit}
         />
-      )
-    case 'link':
-      return <EmbedLinkContent defaultUrl={defaultUrl} onNewUrl={onSubmit} />
-    case 'giphy':
-      return <GiphyContent onNewUrl={onSubmit} />
-    case 'emoji':
-      return <EmojiSearchableList onEmojiSelected={onSubmit} />
-    case 'unsplash':
-      return <UnsplashPicker imageSize={imageSize} onImageSelect={onSubmit} />
+      );
+    }
+    case "link":
+      return (
+        <EmbedLinkContent
+          defaultUrl={defaultUrl}
+          onNewUrl={onSubmit}
+          withVariableButton={linkWithVariableButton}
+          onDelete={onDelete}
+        />
+      );
+    case "giphy":
+      return <GiphyContent onNewUrl={onSubmit} />;
+    case "emoji":
+      return <EmojiSearchableList onEmojiSelected={onSubmit} />;
+    case "unsplash":
+      return <UnsplashPicker imageSize={imageSize} onImageSelect={onSubmit} />;
+    case "icon":
+      return <IconPicker onIconSelected={onSubmit} />;
   }
-}
+};
 
-type ContentProps = { onNewUrl: (url: string) => void }
+type ContentProps = { onNewUrl: (url: string) => void };
 
 const UploadFileContent = ({
-  filePath,
-  includeFileName,
+  uploadFileProps,
   onNewUrl,
-}: ContentProps & { filePath: string; includeFileName?: boolean }) => (
-  <Flex justify="center" py="2">
-    <UploadButton
-      fileType="image"
-      filePath={filePath}
-      onFileUploaded={onNewUrl}
-      includeFileName={includeFileName}
-      colorScheme="blue"
-    >
-      Choose an image
-    </UploadButton>
-  </Flex>
-)
+}: ContentProps & { uploadFileProps: FilePathUploadProps }) => {
+  const { t } = useTranslate();
+
+  return (
+    <div className="flex justify-center py-2">
+      <UploadButton
+        fileType="image"
+        filePathProps={uploadFileProps}
+        onFileUploaded={onNewUrl}
+      >
+        {t("editor.header.uploadTab.uploadButton.label")}
+      </UploadButton>
+    </div>
+  );
+};
 
 const EmbedLinkContent = ({
   defaultUrl,
   onNewUrl,
-}: ContentProps & { defaultUrl?: string }) => (
-  <Stack py="2">
-    <TextInput
-      placeholder={'Paste the image link...'}
-      onChange={onNewUrl}
-      defaultValue={defaultUrl ?? ''}
+  withVariableButton,
+  onDelete,
+}: ContentProps & {
+  defaultUrl?: string;
+  withVariableButton?: boolean;
+  onDelete?: () => void;
+}) => {
+  const { t } = useTranslate();
+
+  if (withVariableButton) {
+    return (
+      <DebouncedTextInputWithVariablesButton
+        placeholder={t("editor.header.linkTab.searchInputPlaceholder.label")}
+        onValueChange={onNewUrl}
+        defaultValue={defaultUrl ?? ""}
+      />
+    );
+  }
+  return (
+    <DebouncedTextInput
+      placeholder={t("editor.header.linkTab.searchInputPlaceholder.label")}
+      onValueChange={onNewUrl}
+      defaultValue={defaultUrl ?? ""}
+      onKeyDown={(e) => {
+        if (e.key === "Backspace" && e.currentTarget.value === "") {
+          onDelete?.();
+        }
+      }}
     />
-  </Stack>
-)
+  );
+};
 
 const GiphyContent = ({ onNewUrl }: ContentProps) => (
   <GiphyPicker onSubmit={onNewUrl} />
-)
+);

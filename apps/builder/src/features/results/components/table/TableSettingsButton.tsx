@@ -1,57 +1,55 @@
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-  PopoverBody,
-  Stack,
-  IconButton,
-  Portal,
-  Button,
-  Text,
-  HStack,
-  useDisclosure,
-} from '@chakra-ui/react'
-import {
-  ChevronRightIcon,
-  DownloadIcon,
-  ListIcon,
-  MoreHorizontalIcon,
-} from '@/components/icons'
-import { ResultHeaderCell } from '@typebot.io/schemas'
-import React, { useState } from 'react'
-import { ColumnSettings } from './ColumnSettings'
-import { ExportAllResultsModal } from './ExportAllResultsModal'
+import type { ResultHeaderCell } from "@typebot.io/results/schemas/results";
+import type { TimeFilter } from "@typebot.io/results/timeFilter";
+import { Button } from "@typebot.io/ui/components/Button";
+import { Popover } from "@typebot.io/ui/components/Popover";
+import { useOpenControls } from "@typebot.io/ui/hooks/useOpenControls";
+import { ArrowRight01Icon } from "@typebot.io/ui/icons/ArrowRight01Icon";
+import { Download01Icon } from "@typebot.io/ui/icons/Download01Icon";
+import { LeftToRightListBulletIcon } from "@typebot.io/ui/icons/LeftToRightListBulletIcon";
+import { MoreHorizontalIcon } from "@typebot.io/ui/icons/MoreHorizontalIcon";
+import { useState } from "react";
+import { ColumnSettings } from "./ColumnSettings";
+import { ExportAllResultsDialog } from "./ExportAllResultsDialog";
 
 type Props = {
-  resultHeader: ResultHeaderCell[]
-  columnVisibility: { [key: string]: boolean }
-  columnOrder: string[]
-  onColumnOrderChange: (columnOrder: string[]) => void
-  setColumnVisibility: (columnVisibility: { [key: string]: boolean }) => void
-}
+  resultHeader: ResultHeaderCell[];
+  columnVisibility: { [key: string]: boolean };
+  columnOrder: string[];
+  onColumnOrderChange: (columnOrder: string[]) => void;
+  setColumnVisibility: (columnVisibility: { [key: string]: boolean }) => void;
+  timeFilter: TimeFilter;
+};
 
 export const TableSettingsButton = (props: Props) => {
-  const { isOpen, onOpen, onClose } = useDisclosure()
+  const controls = useOpenControls();
+  const exportAllDialogControls = useOpenControls();
+
   return (
     <>
-      <Popover isLazy placement="bottom-end">
-        <PopoverTrigger>
-          <IconButton
-            size="sm"
-            aria-label="Open table settings"
-            icon={<MoreHorizontalIcon />}
+      <Popover.Root {...controls}>
+        <Popover.TriggerButton
+          variant="secondary"
+          size="icon"
+          aria-label="Open table settings"
+          className="size-8"
+        >
+          <MoreHorizontalIcon />
+        </Popover.TriggerButton>
+        <Popover.Popup className="w-[300px] p-0" side="bottom" align="end">
+          <TableSettingsMenu
+            {...props}
+            onExportAllClick={exportAllDialogControls.onOpen}
           />
-        </PopoverTrigger>
-        <Portal>
-          <PopoverContent w="300px">
-            <TableSettingsMenu {...props} onExportAllClick={onOpen} />
-          </PopoverContent>
-        </Portal>
-      </Popover>
-      <ExportAllResultsModal onClose={onClose} isOpen={isOpen} />
+        </Popover.Popup>
+      </Popover.Root>
+      <ExportAllResultsDialog
+        onClose={exportAllDialogControls.onClose}
+        isOpen={exportAllDialogControls.isOpen}
+        timeFilter={props.timeFilter}
+      />
     </>
-  )
-}
+  );
+};
 
 const TableSettingsMenu = ({
   resultHeader,
@@ -62,19 +60,13 @@ const TableSettingsMenu = ({
   onExportAllClick,
 }: Props & { onExportAllClick: () => void }) => {
   const [selectedMenu, setSelectedMenu] = useState<
-    'export' | 'columnSettings' | null
-  >(null)
+    "export" | "columnSettings" | null
+  >(null);
 
   switch (selectedMenu) {
-    case 'columnSettings':
+    case "columnSettings":
       return (
-        <PopoverBody
-          as={Stack}
-          spacing="4"
-          p="4"
-          maxH="450px"
-          overflowY="scroll"
-        >
+        <div className="p-4">
           <ColumnSettings
             resultHeader={resultHeader}
             columnVisibility={columnVisibility}
@@ -82,37 +74,33 @@ const TableSettingsMenu = ({
             columnOrder={columnOrder}
             onColumnOrderChange={onColumnOrderChange}
           />
-        </PopoverBody>
-      )
+        </div>
+      );
     default:
       return (
-        <PopoverBody as={Stack} p="0" spacing="0">
+        <div className="flex flex-col">
           <Button
-            onClick={() => setSelectedMenu('columnSettings')}
+            onClick={() => setSelectedMenu("columnSettings")}
             variant="ghost"
-            borderBottomRadius={0}
-            justifyContent="space-between"
+            className="rounded-b-none justify-between"
           >
-            <HStack>
-              <ListIcon />
-              <Text>Column settings</Text>
-            </HStack>
-
-            <ChevronRightIcon color="gray.400" />
+            <div className="flex items-center gap-2">
+              <LeftToRightListBulletIcon />
+              <p>Column settings</p>
+            </div>
+            <ArrowRight01Icon />
           </Button>
-          noOfLines={1}
           <Button
             onClick={onExportAllClick}
             variant="ghost"
-            borderTopRadius={0}
-            justifyContent="space-between"
+            className="rounded-t-none justify-between"
           >
-            <HStack>
-              <DownloadIcon />
-              <Text>Export all</Text>
-            </HStack>
+            <div className="flex items-center gap-2">
+              <Download01Icon />
+              <p>Export all</p>
+            </div>
           </Button>
-        </PopoverBody>
-      )
+        </div>
+      );
   }
-}
+};

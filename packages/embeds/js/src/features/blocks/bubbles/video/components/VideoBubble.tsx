@@ -1,110 +1,147 @@
-import { TypingBubble } from '@/components'
-import type { VideoBubbleContent } from '@typebot.io/schemas'
-import { VideoBubbleContentType } from '@typebot.io/schemas/features/blocks/bubbles/video/enums'
-import { createSignal, Match, onCleanup, onMount, Switch } from 'solid-js'
+import {
+  defaultVideoBubbleContent,
+  embedBaseUrls,
+  embeddableVideoTypes,
+  VideoBubbleContentType,
+} from "@typebot.io/blocks-bubbles/video/constants";
+import { parseQueryParams } from "@typebot.io/blocks-bubbles/video/helpers";
+import type {
+  EmbeddableVideoBubbleContentType,
+  VideoBubbleBlock,
+} from "@typebot.io/blocks-bubbles/video/schema";
+import { cx } from "@typebot.io/ui/lib/cva";
+import { createSignal, Match, onCleanup, onMount, Switch } from "solid-js";
+import { TypingBubble } from "../../../../../components/TypingBubble";
 
 type Props = {
-  content: VideoBubbleContent
-  onTransitionEnd: () => void
-}
+  content: VideoBubbleBlock["content"];
+  onTransitionEnd?: (ref?: HTMLDivElement) => void;
+};
 
-export const showAnimationDuration = 400
-
-let typingTimeout: NodeJS.Timeout
+export const showAnimationDuration = 400;
+let typingTimeout: NodeJS.Timeout;
 
 export const VideoBubble = (props: Props) => {
-  const [isTyping, setIsTyping] = createSignal(true)
-
-  const onTypingEnd = () => {
-    if (!isTyping()) return
-    setIsTyping(false)
-    setTimeout(() => {
-      props.onTransitionEnd()
-    }, showAnimationDuration)
-  }
+  let ref: HTMLDivElement | undefined;
+  const [isTyping, setIsTyping] = createSignal(!!props.onTransitionEnd);
 
   onMount(() => {
-    typingTimeout = setTimeout(onTypingEnd, 2000)
-  })
+    const typingDuration =
+      props.content?.type &&
+      embeddableVideoTypes.includes(
+        props.content?.type as EmbeddableVideoBubbleContentType,
+      )
+        ? 2000
+        : 100;
+    typingTimeout = setTimeout(() => {
+      if (!isTyping()) return;
+      setIsTyping(false);
+      setTimeout(() => {
+        props.onTransitionEnd?.(ref);
+      }, showAnimationDuration);
+    }, typingDuration);
+  });
 
   onCleanup(() => {
-    if (typingTimeout) clearTimeout(typingTimeout)
-  })
+    if (typingTimeout) clearTimeout(typingTimeout);
+  });
 
   return (
-    <div class="flex flex-col animate-fade-in">
+    <div
+      class={cx(
+        "flex flex-col w-full",
+        props.onTransitionEnd ? "animate-fade-in" : undefined,
+      )}
+      ref={ref}
+    >
       <div class="flex w-full items-center">
-        <div class={'flex relative z-10 items-start typebot-host-bubble'}>
+        <div class="flex relative z-10 items-start typebot-host-bubble overflow-hidden w-full max-w-full">
           <div
             class="flex items-center absolute px-4 py-2 bubble-typing z-10 "
             style={{
-              width: isTyping() ? '64px' : '100%',
-              height: isTyping() ? '32px' : '100%',
+              width: isTyping() ? "64px" : "100%",
+              height: isTyping() ? "32px" : "100%",
+              "max-width":
+                props.content?.maxWidth ?? defaultVideoBubbleContent.maxWidth,
             }}
           >
             {isTyping() && <TypingBubble />}
           </div>
-          <VideoContent content={props.content} isTyping={isTyping()} />
+          <Switch>
+            <Match
+              when={
+                props.content?.type &&
+                props.content.type === VideoBubbleContentType.URL
+              }
+            >
+              {/* biome-ignore lint/a11y/useMediaCaption: Captions are not available for dynamically configured video bubble sources. */}
+              <video
+                autoplay={
+                  props.onTransitionEnd
+                    ? (props.content?.isAutoplayEnabled ??
+                      defaultVideoBubbleContent.isAutoplayEnabled)
+                    : false
+                }
+                src={props.content?.url}
+                controls={
+                  props.content?.areControlsDisplayed ??
+                  defaultVideoBubbleContent.areControlsDisplayed
+                }
+                class={cx(
+                  "p-4 focus:outline-none w-full relative z-20 text-fade-in rounded-md",
+                  isTyping() ? "opacity-0 h-8 @xs:h-9" : "opacity-100 h-auto",
+                )}
+                style={{
+                  "aspect-ratio": props.content?.aspectRatio,
+                  "max-width":
+                    props.content?.maxWidth ??
+                    defaultVideoBubbleContent.maxWidth,
+                }}
+              />
+            </Match>
+            <Match
+              when={
+                props.content?.type &&
+                embeddableVideoTypes.includes(
+                  props.content.type as EmbeddableVideoBubbleContentType,
+                )
+              }
+            >
+              <div
+                class={cx(
+                  "p-4 relative z-20 text-fade-in w-full aspect-(--aspect-ratio)",
+                  isTyping() ? "opacity-0 h-8 @xs:h-9" : "opacity-100",
+                  !props.content?.aspectRatio && "h-(--height)",
+                )}
+                style={{
+                  "--aspect-ratio": props.content?.aspectRatio,
+                  "--height": `${
+                    props.content?.height ?? defaultVideoBubbleContent.height
+                  }px`,
+                  "max-width":
+                    props.content?.maxWidth ??
+                    defaultVideoBubbleContent.maxWidth,
+                }}
+              >
+                <iframe
+                  title="Video content"
+                  src={`${
+                    embedBaseUrls[
+                      props.content?.type as EmbeddableVideoBubbleContentType
+                    ]
+                  }/${props.content?.id ?? ""}${
+                    props.content?.queryParamsStr ??
+                    `?${parseQueryParams(props.content)}`
+                  }`}
+                  class={"w-full h-full"}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowfullscreen
+                />
+              </div>
+            </Match>
+          </Switch>
         </div>
       </div>
     </div>
-  )
-}
-
-type VideoContentProps = {
-  content: VideoBubbleContent
-  isTyping: boolean
-}
-
-const VideoContent = (props: VideoContentProps) => {
-  return (
-    <Switch>
-      <Match
-        when={
-          props.content?.type &&
-          props.content.type === VideoBubbleContentType.URL
-        }
-      >
-        <video
-          controls
-          class={
-            'p-4 focus:outline-none w-full z-10 text-fade-in ' +
-            (props.isTyping ? 'opacity-0' : 'opacity-100')
-          }
-          style={{
-            height: props.isTyping ? '32px' : 'auto',
-            'max-height': window.navigator.vendor.match(/apple/i) ? '40vh' : '',
-          }}
-          autoplay
-        >
-          <source src={props.content.url} type="video/mp4" />
-          Sorry, your browser doesn&apos;t support embedded videos.
-        </video>
-      </Match>
-      <Match
-        when={
-          props.content?.type &&
-          [
-            VideoBubbleContentType.VIMEO,
-            VideoBubbleContentType.YOUTUBE,
-          ].includes(props.content.type)
-        }
-      >
-        <iframe
-          src={`${
-            props.content.type === VideoBubbleContentType.VIMEO
-              ? 'https://player.vimeo.com/video'
-              : 'https://www.youtube.com/embed'
-          }/${props.content.id}`}
-          class={
-            'w-full p-4 text-fade-in z-10 ' +
-            (props.isTyping ? 'opacity-0' : 'opacity-100')
-          }
-          height={props.isTyping ? '32px' : '200px'}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowfullscreen
-        />
-      </Match>
-    </Switch>
-  )
-}
+  );
+};

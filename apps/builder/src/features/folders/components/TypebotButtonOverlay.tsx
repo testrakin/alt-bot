@@ -1,48 +1,33 @@
-import {
-  Box,
-  BoxProps,
-  Flex,
-  Text,
-  useColorModeValue,
-  VStack,
-} from '@chakra-ui/react'
-import { EmojiOrImageIcon } from '@/components/EmojiOrImageIcon'
-import { TypebotInDashboard } from '@/features/dashboard/types'
+import { EmojiOrImageIcon } from "@typebot.io/ui/components/EmojiOrImageIcon";
+import { LayoutBottomIcon } from "@typebot.io/ui/icons/LayoutBottomIcon";
+import { cn } from "@typebot.io/ui/lib/cn";
+import type { TypebotInDashboard } from "@/features/dashboard/types";
 
 type Props = {
-  typebot: TypebotInDashboard
-} & BoxProps
+  typebot: TypebotInDashboard;
+  className?: string;
+  style?: React.CSSProperties;
+};
 
-export const TypebotCardOverlay = ({ typebot, ...props }: Props) => {
+export const TypebotButtonOverlay = ({ typebot, className, style }: Props) => {
   return (
-    <Box
-      display="flex"
-      flexDir="column"
-      variant="outline"
-      justifyContent="center"
-      w="225px"
-      h="270px"
-      whiteSpace="normal"
-      transition="none"
-      pointerEvents="none"
-      borderWidth={1}
-      rounded="md"
-      bgColor={useColorModeValue('white', 'gray.700')}
-      shadow="lg"
-      opacity={0.7}
-      {...props}
+    <div
+      className={cn(
+        "flex flex-col justify-center w-[225px] h-[270px] border rounded-md shadow-md whitespace-normal transition-none pointer-events-none opacity-70 bg-gray-1",
+        className,
+      )}
+      style={style}
     >
-      <VStack spacing={4}>
-        <Flex
-          rounded="full"
-          justifyContent="center"
-          alignItems="center"
-          fontSize={'4xl'}
-        >
-          <EmojiOrImageIcon icon={typebot.icon} boxSize={'35px'} />
-        </Flex>
-        <Text>{typebot.name}</Text>
-      </VStack>
-    </Box>
-  )
-}
+      <div className="flex flex-col items-center gap-4">
+        <div className="flex rounded-full justify-center items-center text-4xl">
+          <EmojiOrImageIcon
+            icon={typebot.icon}
+            className="size-9 text-[2.25rem]"
+            defaultIcon={<LayoutBottomIcon className="size-full" />}
+          />
+        </div>
+        <p className="font-medium">{typebot.name}</p>
+      </div>
+    </div>
+  );
+};

@@ -1,80 +1,98 @@
-import { ImageUploadContent } from '@/components/ImageUploadContent'
-import { TextInput } from '@/components/inputs'
-import { SwitchWithLabel } from '@/components/inputs/SwitchWithLabel'
-import { Stack } from '@chakra-ui/react'
-import { isDefined, isNotEmpty } from '@typebot.io/lib'
-import { ImageBubbleBlock } from '@typebot.io/schemas'
-import React, { useState } from 'react'
+import { useTranslate } from "@tolgee/react";
+import { defaultImageBubbleContent } from "@typebot.io/blocks-bubbles/image/constants";
+import type { ImageBubbleBlock } from "@typebot.io/blocks-bubbles/image/schema";
+import { isDefined, isNotEmpty } from "@typebot.io/lib/utils";
+import { Field } from "@typebot.io/ui/components/Field";
+import { Switch } from "@typebot.io/ui/components/Switch";
+import { useState } from "react";
+import { ImageUploadContent } from "@/components/ImageUploadContent";
+import { DebouncedTextInputWithVariablesButton } from "@/components/inputs/DebouncedTextInput";
+import type { FilePathUploadProps } from "@/features/upload/api/generateUploadUrl";
 
 type Props = {
-  typebotId: string
-  block: ImageBubbleBlock
-  onContentChange: (content: ImageBubbleBlock['content']) => void
-}
+  uploadFileProps: FilePathUploadProps;
+  block: ImageBubbleBlock;
+  onContentChange: (content: ImageBubbleBlock["content"]) => void;
+};
 
 export const ImageBubbleSettings = ({
-  typebotId,
+  uploadFileProps,
   block,
   onContentChange,
 }: Props) => {
+  const { t } = useTranslate();
   const [showClickLinkInput, setShowClickLinkInput] = useState(
-    isNotEmpty(block.content.clickLink?.url)
-  )
+    isNotEmpty(block.content?.clickLink?.url),
+  );
 
   const updateImage = (url: string) => {
-    onContentChange({ ...block.content, url })
-  }
+    onContentChange({ ...block.content, url });
+  };
 
   const updateClickLinkUrl = (url: string) => {
     onContentChange({
       ...block.content,
-      clickLink: { ...block.content.clickLink, url },
-    })
-  }
+      clickLink: { ...block.content?.clickLink, url },
+    });
+  };
 
   const updateClickLinkAltText = (alt: string) => {
     onContentChange({
       ...block.content,
-      clickLink: { ...block.content.clickLink, alt },
-    })
-  }
+      clickLink: { ...block.content?.clickLink, alt },
+    });
+  };
 
   const toggleClickLink = () => {
-    if (isDefined(block.content.clickLink) && showClickLinkInput) {
-      onContentChange({ ...block.content, clickLink: undefined })
+    if (isDefined(block.content?.clickLink) && showClickLinkInput) {
+      onContentChange({ ...block.content, clickLink: undefined });
     }
-    setShowClickLinkInput(!showClickLinkInput)
-  }
+    setShowClickLinkInput(!showClickLinkInput);
+  };
 
   return (
-    <Stack p="2" spacing={4}>
+    <div className="flex flex-col gap-4">
       <ImageUploadContent
-        filePath={`typebots/${typebotId}/blocks/${block.id}`}
+        uploadFileProps={uploadFileProps}
         defaultUrl={block.content?.url}
         onSubmit={updateImage}
+        additionalTabs={{
+          giphy: true,
+          unsplash: true,
+          icon: true,
+        }}
       />
-      <Stack>
-        <SwitchWithLabel
-          label={'On click link'}
-          initialValue={showClickLinkInput}
-          onCheckChange={toggleClickLink}
-        />
+      <div className="flex flex-col gap-2">
+        <Field.Root className="flex-row items-center">
+          <Switch
+            checked={showClickLinkInput}
+            onCheckedChange={toggleClickLink}
+          />
+          <Field.Label>
+            {t("editor.blocks.bubbles.image.switchWithLabel.onClick.label")}
+          </Field.Label>
+        </Field.Root>
         {showClickLinkInput && (
           <>
-            <TextInput
+            <DebouncedTextInputWithVariablesButton
               autoFocus
               placeholder="https://example.com"
-              onChange={updateClickLinkUrl}
-              defaultValue={block.content.clickLink?.url}
+              onValueChange={updateClickLinkUrl}
+              defaultValue={block.content?.clickLink?.url}
             />
-            <TextInput
-              placeholder="Link alt text (description)"
-              onChange={updateClickLinkAltText}
-              defaultValue={block.content.clickLink?.alt}
+            <DebouncedTextInputWithVariablesButton
+              placeholder={t(
+                "editor.blocks.bubbles.image.switchWithLabel.onClick.placeholder",
+              )}
+              onValueChange={updateClickLinkAltText}
+              defaultValue={
+                block.content?.clickLink?.alt ??
+                defaultImageBubbleContent.clickLink.alt
+              }
             />
           </>
         )}
-      </Stack>
-    </Stack>
-  )
-}
+      </div>
+    </div>
+  );
+};

@@ -1,226 +1,224 @@
-import { MoreHorizontalIcon, EditIcon, TrashIcon } from '@/components/icons'
-import { colors } from '@/lib/theme'
-import { trpc } from '@/lib/trpc'
+import { useMutation } from "@tanstack/react-query";
+import { useTranslate } from "@tolgee/react";
 import {
-  Stack,
-  HStack,
-  Flex,
-  Menu,
-  MenuButton,
-  IconButton,
-  MenuList,
-  MenuItem,
-  Box,
-  Text,
-  Image,
-  useColorModeValue,
-} from '@chakra-ui/react'
-import { BackgroundType, ThemeTemplate } from '@typebot.io/schemas'
-import { useState } from 'react'
-import { DefaultAvatar } from './DefaultAvatar'
+  BackgroundType,
+  defaultBackgroundColor,
+  defaultButtonsBackgroundColor,
+  defaultGuestAvatarIsEnabled,
+  defaultGuestBubblesBackgroundColor,
+  defaultHostAvatarIsEnabled,
+  defaultHostBubblesBackgroundColor,
+} from "@typebot.io/theme/constants";
+import type { Theme, ThemeTemplate } from "@typebot.io/theme/schemas";
+import type { TypebotV6 } from "@typebot.io/typebot/schemas/typebot";
+import { Menu } from "@typebot.io/ui/components/Menu";
+import { Edit03Icon } from "@typebot.io/ui/icons/Edit03Icon";
+import { MoreHorizontalIcon } from "@typebot.io/ui/icons/MoreHorizontalIcon";
+import { TrashIcon } from "@typebot.io/ui/icons/TrashIcon";
+import { cx } from "@typebot.io/ui/lib/cva";
+import { useState } from "react";
+import { orpc, queryClient } from "@/lib/queryClient";
+import { DefaultAvatar } from "./DefaultAvatar";
 
 export const ThemeTemplateCard = ({
   workspaceId,
   themeTemplate,
   isSelected,
+  typebotVersion,
   onClick,
   onRenameClick,
   onDeleteSuccess,
 }: {
-  workspaceId: string
-  themeTemplate: Pick<ThemeTemplate, 'name' | 'theme' | 'id'>
-  isSelected: boolean
-  onRenameClick?: () => void
-  onClick: () => void
-  onDeleteSuccess?: () => void
+  workspaceId: string;
+  typebotVersion: TypebotV6["version"];
+  themeTemplate: Pick<ThemeTemplate, "name" | "theme" | "id">;
+  isSelected: boolean;
+  onRenameClick?: () => void;
+  onClick: () => void;
+  onDeleteSuccess?: () => void;
 }) => {
-  const borderWidth = useColorModeValue(undefined, '1px')
-  const [isDeleting, setIsDeleting] = useState(false)
+  const { t } = useTranslate();
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const {
-    theme: {
-      listThemeTemplates: { refetch: refetchThemeTemplates },
-    },
-  } = trpc.useContext()
-  const { mutate } = trpc.theme.deleteThemeTemplate.useMutation({
-    onMutate: () => setIsDeleting(true),
-    onSettled: () => setIsDeleting(false),
-    onSuccess: () => {
-      refetchThemeTemplates()
-      if (onDeleteSuccess) onDeleteSuccess()
-    },
-  })
+  const { mutate } = useMutation(
+    orpc.theme.deleteThemeTemplate.mutationOptions({
+      onMutate: () => setIsDeleting(true),
+      onSettled: () => setIsDeleting(false),
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.theme.listThemeTemplates.key(),
+        });
+        if (onDeleteSuccess) onDeleteSuccess();
+      },
+    }),
+  );
 
   const deleteThemeTemplate = () => {
-    mutate({ themeTemplateId: themeTemplate.id, workspaceId })
-  }
+    mutate({ themeTemplateId: themeTemplate.id, workspaceId });
+  };
 
-  const rounded =
-    themeTemplate.theme.chat.roundness === 'large'
-      ? 'md'
-      : themeTemplate.theme.chat.roundness === 'none'
-      ? 'none'
-      : 'sm'
+  const hostAvatar = {
+    isEnabled:
+      themeTemplate.theme.chat?.hostAvatar?.isEnabled ??
+      defaultHostAvatarIsEnabled,
+    url: themeTemplate.theme.chat?.hostAvatar?.url,
+  };
+
+  const hostBubbleBgColor =
+    themeTemplate.theme.chat?.hostBubbles?.backgroundColor ??
+    defaultHostBubblesBackgroundColor[typebotVersion];
+
+  const guestAvatar = {
+    isEnabled:
+      themeTemplate.theme.chat?.guestAvatar?.isEnabled ??
+      defaultGuestAvatarIsEnabled,
+    url: themeTemplate.theme.chat?.guestAvatar?.url,
+  };
+
+  const guestBubbleBgColor =
+    themeTemplate.theme.chat?.guestBubbles?.backgroundColor ??
+    defaultGuestBubblesBackgroundColor[typebotVersion];
+
+  const buttonBgColor =
+    themeTemplate.theme.chat?.buttons?.backgroundColor ??
+    defaultButtonsBackgroundColor[typebotVersion];
 
   return (
-    <Stack
-      borderWidth={borderWidth}
-      cursor="pointer"
-      onClick={onClick}
-      spacing={0}
-      opacity={isDeleting ? 0.5 : 1}
-      pointerEvents={isDeleting ? 'none' : undefined}
-      rounded="md"
-      boxShadow={
-        isSelected
-          ? `${colors['blue']['400']} 0 0 0 4px`
-          : `rgba(0, 0, 0, 0.08) 0px 2px 4px`
+    // biome-ignore lint/a11y/useSemanticElements: This card contains nested interactive controls.
+    <div
+      style={
+        {
+          "--tw-shadow": isSelected
+            ? "rgb(var(--orange-8)) 0 0 0 2px"
+            : "rgba(0, 0, 0, 0.08) 0px 2px 2px",
+          "--rounded":
+            themeTemplate.theme.chat?.roundness === "large"
+              ? "md"
+              : themeTemplate.theme.chat?.roundness === "none"
+                ? "none"
+                : "sm",
+        } as React.CSSProperties
       }
-      style={{
-        willChange: 'box-shadow',
-        transition: 'box-shadow 0.2s ease 0s',
+      className={cx(
+        "flex flex-col gap-0 rounded-md border cursor-pointer shadow-md transition-shadow",
+        isDeleting ? "opacity-50 pointer-events-none" : "opacity-100",
+      )}
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onClick();
       }}
     >
-      <Box
-        borderTopRadius="md"
-        backgroundSize="cover"
-        {...parseBackground(themeTemplate.theme.general.background)}
-        borderColor={isSelected ? 'blue.400' : undefined}
+      <div
+        style={{ ...parseBackground(themeTemplate.theme.general?.background) }}
+        className="rounded-t-md bg-cover"
       >
-        <HStack mt="4" ml="4" spacing={0.5} alignItems="flex-end">
-          <AvatarPreview avatar={themeTemplate.theme.chat.hostAvatar} />
-          <Box
-            rounded="sm"
-            w="80px"
-            h="16px"
-            background={themeTemplate.theme.chat.hostBubbles.backgroundColor}
+        <div className="flex mt-4 ml-4 gap-0.5 items-end">
+          <AvatarPreview avatar={hostAvatar} />
+          <div
+            style={{ backgroundColor: hostBubbleBgColor }}
+            className="rounded-sm w-[80px] h-[16px]"
           />
-        </HStack>
+        </div>
 
-        <HStack
-          mt="1"
-          mr="4"
-          ml="auto"
-          justifyContent="flex-end"
-          alignItems="flex-end"
-        >
-          <Box
-            rounded="sm"
-            w="80px"
-            h="16px"
-            background={themeTemplate.theme.chat.guestBubbles.backgroundColor}
+        <div className="flex gap-2 mt-1 mr-4 ml-auto justify-end items-end">
+          <div
+            className="rounded-sm w-[80px] h-[16px]"
+            style={{ backgroundColor: guestBubbleBgColor }}
           />
-          <AvatarPreview avatar={themeTemplate.theme.chat.guestAvatar} />
-        </HStack>
+          <AvatarPreview avatar={guestAvatar} />
+        </div>
 
-        <HStack mt="1" ml="4" spacing={0.5} alignItems="flex-end">
-          <AvatarPreview avatar={themeTemplate.theme.chat.hostAvatar} />
-          <Box
-            rounded="sm"
-            w="80px"
-            h="16px"
-            background={themeTemplate.theme.chat.hostBubbles.backgroundColor}
+        <div className="flex mt-1 ml-4 gap-0.5 items-end">
+          <AvatarPreview avatar={hostAvatar} />
+          <div
+            className="rounded-sm w-[80px] h-[16px]"
+            style={{ backgroundColor: hostBubbleBgColor }}
           />
-        </HStack>
-        <Flex
-          mt="1"
-          mb="4"
-          pr="4"
-          ml="auto"
-          w="full"
-          justifyContent="flex-end"
-          gap="1"
-        >
-          <Box
-            rounded={rounded}
-            w="20px"
-            h="10px"
-            background={themeTemplate.theme.chat.buttons.backgroundColor}
+        </div>
+        <div className="flex mt-1 mb-4 pr-4 ml-auto w-full justify-end gap-1">
+          <div
+            className="w-[20px] h-[10px] rounded-(--rounded)"
+            style={{ backgroundColor: buttonBgColor }}
           />
-          <Box
-            rounded={rounded}
-            w="20px"
-            h="10px"
-            background={themeTemplate.theme.chat.buttons.backgroundColor}
+          <div
+            className="w-[20px] h-[10px] rounded-(--rounded)"
+            style={{ backgroundColor: buttonBgColor }}
           />
-          <Box
-            rounded={rounded}
-            w="20px"
-            h="10px"
-            background={themeTemplate.theme.chat.buttons.backgroundColor}
+          <div
+            className="w-[20px] h-[10px] rounded-(--rounded)"
+            style={{ backgroundColor: buttonBgColor }}
           />
-        </Flex>
-      </Box>
-      <HStack p="2" justifyContent="space-between">
-        <Text fontSize="sm" noOfLines={1}>
-          {themeTemplate.name}
-        </Text>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 p-2 justify-between">
+        <p className="text-sm truncate">{themeTemplate.name}</p>
         {onDeleteSuccess && onRenameClick && (
-          <Menu isLazy>
-            <MenuButton
-              as={IconButton}
-              icon={<MoreHorizontalIcon />}
-              aria-label="Open template menu"
-              variant="ghost"
-              size="xs"
-              onClick={(e) => e.stopPropagation()}
-            />
-            <MenuList onClick={(e) => e.stopPropagation()}>
-              {isSelected && (
-                <MenuItem icon={<EditIcon />} onClick={onRenameClick}>
-                  Rename
-                </MenuItem>
+          <Menu.Root>
+            <Menu.TriggerButton
+              aria-label={t(
+                "theme.sideMenu.template.myTemplates.menu.ariaLabel",
               )}
-              <MenuItem
-                icon={<TrashIcon />}
-                color="red.500"
-                onClick={deleteThemeTemplate}
-              >
-                Delete
-              </MenuItem>
-            </MenuList>
-          </Menu>
+              variant="outline-secondary"
+              size="icon"
+              className="size-7"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreHorizontalIcon />
+            </Menu.TriggerButton>
+            <Menu.Popup align="end">
+              {isSelected && (
+                <Menu.Item onClick={onRenameClick}>
+                  <Edit03Icon />
+                  {t("rename")}
+                </Menu.Item>
+              )}
+              <Menu.Item className="text-red-10" onClick={deleteThemeTemplate}>
+                <TrashIcon />
+                {t("delete")}
+              </Menu.Item>
+            </Menu.Popup>
+          </Menu.Root>
         )}
-      </HStack>
-    </Stack>
-  )
-}
+      </div>
+    </div>
+  );
+};
 
-const parseBackground = (background: {
-  type: BackgroundType
-  content?: string
-}) => {
-  switch (background.type) {
+const parseBackground = (
+  background: NonNullable<Theme["general"]>["background"],
+) => {
+  switch (background?.type) {
+    case undefined:
     case BackgroundType.COLOR:
       return {
-        backgroundColor: background.content,
-      }
+        backgroundColor: background?.content ?? defaultBackgroundColor["6.1"],
+      };
     case BackgroundType.IMAGE:
-      return { backgroundImage: `url(${background.content})` }
+      return { backgroundImage: `url(${background.content})` };
     case BackgroundType.NONE:
-      return
+      return;
   }
-}
+};
 
 const AvatarPreview = ({
   avatar,
 }: {
-  avatar:
-    | {
-        isEnabled: boolean
-        url?: string | undefined
-      }
-    | undefined
+  avatar: NonNullable<Theme["chat"]>["hostAvatar"];
 }) => {
-  if (!avatar?.isEnabled) return null
-  return avatar.url ? (
-    <Image
+  const { t } = useTranslate();
+  if (!avatar?.isEnabled) return null;
+  return avatar?.url ? (
+    <img
+      className="size-3 rounded-full"
       src={avatar.url}
-      alt="Avatar preview in theme template card"
-      boxSize="12px"
-      rounded="full"
+      alt={t("theme.sideMenu.template.gallery.avatarPreview.alt")}
     />
   ) : (
-    <DefaultAvatar boxSize="12px" />
-  )
-}
+    <DefaultAvatar className="size-3" />
+  );
+};

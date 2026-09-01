@@ -1,16 +1,28 @@
-import React from 'react'
-import { Text } from '@chakra-ui/react'
-import { EmailInputBlock } from '@typebot.io/schemas'
-import { WithVariableContent } from '@/features/graph/components/nodes/block/WithVariableContent'
+import { defaultEmailInputOptions } from "@typebot.io/blocks-inputs/email/constants";
+import type { EmailInputBlock } from "@typebot.io/blocks-inputs/email/schema";
+import { SetVariableLabel } from "@/components/SetVariableLabel";
+import { useTypebot } from "@/features/editor/providers/TypebotProvider";
 
 type Props = {
-  variableId?: string
-  placeholder: EmailInputBlock['options']['labels']['placeholder']
-}
+  options: EmailInputBlock["options"];
+};
 
-export const EmailInputNodeContent = ({ variableId, placeholder }: Props) =>
-  variableId ? (
-    <WithVariableContent variableId={variableId} />
-  ) : (
-    <Text color={'gray.500'}>{placeholder}</Text>
-  )
+export const EmailInputNodeContent = ({
+  options: { variableId, labels } = {},
+}: Props) => {
+  const { typebot } = useTypebot();
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p color={"gray.500"}>
+        {labels?.placeholder ?? defaultEmailInputOptions.labels.placeholder}
+      </p>
+      {variableId && (
+        <SetVariableLabel
+          variables={typebot?.variables}
+          variableId={variableId}
+        />
+      )}
+    </div>
+  );
+};

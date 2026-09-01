@@ -1,15 +1,14 @@
-import { Text } from '@chakra-ui/react'
-import { ChatwootBlock } from '@typebot.io/schemas'
+import type { ChatwootBlock } from "@typebot.io/blocks-integrations/chatwoot/schema";
 
 type Props = {
-  block: ChatwootBlock
-}
+  block: ChatwootBlock;
+};
 
 export const ChatwootNodeBody = ({ block }: Props) =>
-  block.options.task === 'Close widget' ? (
-    <Text>Close Chatwoot</Text>
-  ) : block.options.websiteToken.length === 0 ? (
-    <Text color="gray.500">Configure...</Text>
+  block.options?.task === "Close widget" ? (
+    <p>Close Chatwoot</p>
+  ) : (block.options?.websiteToken?.length ?? 0) === 0 ? (
+    <p color="gray.500">Configure...</p>
   ) : (
-    <Text>Open Chatwoot</Text>
-  )
+    <p>Open Chatwoot</p>
+  );

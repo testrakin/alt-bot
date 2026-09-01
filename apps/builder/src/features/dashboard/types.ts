@@ -1,5 +1,8 @@
-import { Typebot } from '@typebot.io/schemas'
+import type { Typebot } from "@typebot.io/typebot/schemas/typebot";
 
-export type TypebotInDashboard = Pick<Typebot, 'id' | 'name' | 'icon'> & {
-  publishedTypebotId?: string
-}
+export type TypebotInDashboard = Pick<
+  Typebot,
+  "id" | "name" | "icon" | "spaceId"
+> & {
+  publishedTypebotId?: string;
+};

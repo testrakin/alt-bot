@@ -1,143 +1,151 @@
+import { useTranslate } from "@tolgee/react";
 import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-  PopoverArrow,
-  PopoverCloseButton,
-  PopoverHeader,
-  Center,
-  PopoverBody,
-  SimpleGrid,
-  Input,
-  Button,
-  Stack,
-  ButtonProps,
-} from '@chakra-ui/react'
-import React, { ChangeEvent, useState } from 'react'
-import tinyColor from 'tinycolor2'
+  type ButtonProps,
+  buttonVariants,
+} from "@typebot.io/ui/components/Button";
+import { Input } from "@typebot.io/ui/components/Input";
+import { Popover } from "@typebot.io/ui/components/Popover";
+import { useOpenControls } from "@typebot.io/ui/hooks/useOpenControls";
+import type React from "react";
+import { useId, useState } from "react";
+import tinyColor from "tinycolor2";
+import { useDebouncedCallback } from "use-debounce";
 
 const colorsSelection: `#${string}`[] = [
-  '#264653',
-  '#e9c46a',
-  '#2a9d8f',
-  '#7209b7',
-  '#023e8a',
-  '#ffe8d6',
-  '#d8f3dc',
-  '#4ea8de',
-  '#ffb4a2',
-]
+  "#666460",
+  "#FFFFFF",
+  "#A87964",
+  "#D09C46",
+  "#DE8031",
+  "#598E71",
+  "#4A8BB2",
+  "#9B74B7",
+  "#C75F96",
+  "#0042DA",
+];
 
 type Props = {
-  value?: string
-  defaultValue?: string
-  onColorChange: (color: string) => void
-}
+  value?: string;
+  defaultValue?: string;
+  isDisabled?: boolean;
+  onColorChange: (color: string) => void;
+  side?: "top" | "bottom" | "left" | "right";
+};
 
-export const ColorPicker = ({ value, defaultValue, onColorChange }: Props) => {
-  const [color, setColor] = useState(defaultValue ?? '')
-  const displayedValue = value ?? color
+export const ColorPicker = ({
+  value,
+  defaultValue,
+  isDisabled,
+  side = "right",
+  onColorChange,
+}: Props) => {
+  const { t } = useTranslate();
+  const [color, setColor] = useState(defaultValue ?? "");
+  const displayedValue = value ?? color;
+  const controls = useOpenControls();
 
-  const handleColorChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setColor(e.target.value)
-    onColorChange(e.target.value)
-  }
+  const handleColorChange = (color: string) => {
+    setColor(color);
+    onColorChange(color);
+  };
 
   const handleClick = (color: string) => () => {
-    setColor(color)
-    onColorChange(color)
-  }
+    setColor(color);
+    onColorChange(color);
+  };
 
   return (
-    <Popover variant="picker" placement="right" isLazy>
-      <PopoverTrigger>
-        <Button
-          aria-label={'Pick a color'}
-          bgColor={displayedValue}
-          _hover={{
-            bgColor: `#${tinyColor(displayedValue).darken(10).toHex()}`,
-          }}
-          _active={{
-            bgColor: `#${tinyColor(displayedValue).darken(30).toHex()}`,
-          }}
-          height="22px"
-          width="22px"
-          padding={0}
-          borderRadius={3}
-          borderWidth={1}
+    <Popover.Root {...controls}>
+      <Popover.TriggerButton
+        aria-label={t("colorPicker.pickColor.ariaLabel")}
+        variant="secondary"
+        size="icon"
+        className="min-w-0 rounded-md border"
+        disabled={isDisabled}
+      >
+        <div
+          className="rounded-full size-[14px]"
+          style={{ backgroundColor: displayedValue }}
         />
-      </PopoverTrigger>
-      <PopoverContent width="170px">
-        <PopoverArrow bg={displayedValue} />
-        <PopoverCloseButton color="white" />
-        <PopoverHeader
-          height="100px"
-          backgroundColor={displayedValue}
-          borderTopLeftRadius={5}
-          borderTopRightRadius={5}
-          color={tinyColor(displayedValue).isLight() ? 'gray.800' : 'white'}
+      </Popover.TriggerButton>
+      <Popover.Popup className="p-0 max-w-48" side={side}>
+        <div
+          className="h-24"
+          style={{
+            backgroundColor: displayedValue,
+            color: tinyColor(displayedValue).isLight() ? "gray.900" : "white",
+          }}
         >
-          <Center height="100%">{displayedValue}</Center>
-        </PopoverHeader>
-        <PopoverBody as={Stack}>
-          <SimpleGrid columns={5} spacing={2}>
-            {colorsSelection.map((c) => (
-              <Button
-                key={c}
-                aria-label={c}
-                background={c}
-                height="22px"
-                width="22px"
-                padding={0}
-                minWidth="unset"
-                borderRadius={3}
-                _hover={{ background: c }}
-                onClick={handleClick(c)}
+          <div className="flex items-center justify-center h-full">
+            {displayedValue}
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 p-2">
+          <div className="grid gap-2 grid-cols-[repeat(5,1fr)]">
+            {colorsSelection.map((color) => (
+              <button
+                type="button"
+                key={color}
+                aria-label={color}
+                style={
+                  {
+                    "--bg": color,
+                    "--border-width": color === "#FFFFFF" ? "1px" : "0px",
+                  } as React.CSSProperties
+                }
+                className="h-5 w-5 p-0 min-w-0 rounded-md border-(length:--border-width) bg-(--bg) hover:bg-(--bg)"
+                onClick={handleClick(color)}
               />
             ))}
-          </SimpleGrid>
+          </div>
           <Input
-            borderRadius={3}
-            marginTop={3}
+            className="rounded-sm mt-3"
             placeholder="#2a9d8f"
-            aria-label="Color value"
+            aria-label={t("colorPicker.colorValue.ariaLabel")}
             size="sm"
             value={displayedValue}
-            onChange={handleColorChange}
+            onValueChange={handleColorChange}
           />
           <NativeColorPicker
             size="sm"
             color={displayedValue}
             onColorChange={handleColorChange}
           >
-            Advanced picker
+            {t("colorPicker.advancedColors")}
           </NativeColorPicker>
-        </PopoverBody>
-      </PopoverContent>
-    </Popover>
-  )
-}
+        </div>
+      </Popover.Popup>
+    </Popover.Root>
+  );
+};
 
 const NativeColorPicker = ({
   color,
   onColorChange,
+  variant,
+  size,
   ...props
 }: {
-  color: string
-  onColorChange: (e: ChangeEvent<HTMLInputElement>) => void
+  color: string;
+  onColorChange: (color: string) => void;
 } & ButtonProps) => {
+  const inputId = useId();
+  const debouncedOnColorChange = useDebouncedCallback((color: string) => {
+    onColorChange(color);
+  }, 200);
+
   return (
     <>
-      <Button as="label" htmlFor="native-picker" {...props}>
+      <label htmlFor={inputId} className={buttonVariants({ variant, size })}>
         {props.children}
-      </Button>
-      <Input
+      </label>
+      <input
         type="color"
-        display="none"
-        id="native-picker"
+        className="hidden"
+        id={inputId}
         value={color}
-        onChange={onColorChange}
+        onChange={(e) => debouncedOnColorChange(e.target.value)}
       />
     </>
-  )
-}
+  );
+};

@@ -1,3 +1,5 @@
-import { executePrismaCommand } from './executeCommand'
+import { executePrismaCommand } from "./executeCommand";
 
-executePrismaCommand('cross-env BROWSER=none prisma studio')
+executePrismaCommand("BROWSER=none prisma studio --port 5555", {
+  includeSchema: false,
+});

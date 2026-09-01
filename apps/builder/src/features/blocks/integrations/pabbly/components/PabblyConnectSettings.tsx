@@ -1,79 +1,90 @@
-import { Alert, AlertIcon, Button, Link, Stack, Text } from '@chakra-ui/react'
-import { ExternalLinkIcon } from '@/components/icons'
-import { useTypebot } from '@/features/editor/providers/TypebotProvider'
-import {
-  PabblyConnectBlock,
-  Webhook,
-  WebhookOptions,
-} from '@typebot.io/schemas'
-import React, { useState } from 'react'
-import { byId } from '@typebot.io/lib'
-import { WebhookAdvancedConfigForm } from '../../webhook/components/WebhookAdvancedConfigForm'
-import { TextInput } from '@/components/inputs'
+import type { HttpRequest } from "@typebot.io/blocks-integrations/httpRequest/schema";
+import type { PabblyConnectBlock } from "@typebot.io/blocks-integrations/pabblyConnect/schema";
+import { Alert } from "@typebot.io/ui/components/Alert";
+import { Input } from "@typebot.io/ui/components/Input";
+import { ArrowUpRight01Icon } from "@typebot.io/ui/icons/ArrowUpRight01Icon";
+import { CheckmarkSquare02Icon } from "@typebot.io/ui/icons/CheckmarkSquare02Icon";
+import { InformationSquareIcon } from "@typebot.io/ui/icons/InformationSquareIcon";
+import { useRef } from "react";
+import { ButtonLink } from "@/components/ButtonLink";
+import { HttpRequestAdvancedConfigForm } from "../../httpRequest/components/HttpRequestAdvancedConfigForm";
 
 type Props = {
-  block: PabblyConnectBlock
-  onOptionsChange: (options: WebhookOptions) => void
-}
+  block: PabblyConnectBlock;
+  onOptionsChange: (options: PabblyConnectBlock["options"]) => void;
+};
 
 export const PabblyConnectSettings = ({
-  block: { webhookId, id: blockId, options },
+  block: { id: blockId, options },
   onOptionsChange,
 }: Props) => {
-  const { webhooks, updateWebhook } = useTypebot()
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  const [localWebhook, _setLocalWebhook] = useState(
-    webhooks.find(byId(webhookId))
-  )
+  const setLocalWebhook = async (newLocalWebhook: HttpRequest) => {
+    onOptionsChange({
+      ...options,
+      webhook: newLocalWebhook,
+    });
+  };
 
-  const setLocalWebhook = async (newLocalWebhook: Webhook) => {
-    _setLocalWebhook(newLocalWebhook)
-    await updateWebhook(newLocalWebhook.id, newLocalWebhook)
-  }
+  const updateUrl = (url: string) => {
+    onOptionsChange({ ...options, webhook: { ...options?.webhook, url } });
+  };
 
-  const handleUrlChange = (url: string) =>
-    localWebhook &&
-    setLocalWebhook({
-      ...localWebhook,
-      url,
-    })
+  const url = options?.webhook?.url;
+
+  const handleNewTestResponse = () => {
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
+    }, 100);
+  };
 
   return (
-    <Stack spacing={4}>
-      <Alert status={localWebhook?.url ? 'success' : 'info'} rounded="md">
-        <AlertIcon />
-        {localWebhook?.url ? (
-          <>Your scenario is correctly configured 🚀</>
+    <div className="flex flex-col gap-0">
+      <div className="flex flex-col gap-4">
+        {url ? (
+          <Alert.Root variant="success">
+            <CheckmarkSquare02Icon />
+            <Alert.Description>
+              Your scenario is correctly configured 🚀
+            </Alert.Description>
+          </Alert.Root>
         ) : (
-          <Stack>
-            <Text>Head up to Pabbly Connect to get the webhook URL:</Text>
-            <Button
-              as={Link}
-              href="https://www.pabbly.com/connect/integrations/typebot/"
-              isExternal
-              colorScheme="blue"
-            >
-              <Text mr="2">Pabbly.com</Text> <ExternalLinkIcon />
-            </Button>
-          </Stack>
+          <Alert.Root>
+            <InformationSquareIcon />
+            <Alert.Description>
+              Head up to Pabbly Connect to get the webhook URL:
+            </Alert.Description>
+            <Alert.Action>
+              <ButtonLink
+                variant="secondary"
+                href="https://www.pabbly.com/connect/integrations/typebot/"
+                target="_blank"
+                size="xs"
+              >
+                Pabbly.com <ArrowUpRight01Icon />
+              </ButtonLink>
+            </Alert.Action>
+          </Alert.Root>
         )}
-      </Alert>
-      <TextInput
-        placeholder="Paste webhook URL..."
-        defaultValue={localWebhook?.url ?? ''}
-        onChange={handleUrlChange}
-        withVariableButton={false}
-        debounceTimeout={0}
-      />
-      {localWebhook && (
-        <WebhookAdvancedConfigForm
-          blockId={blockId}
-          webhook={localWebhook}
-          options={options}
-          onWebhookChange={setLocalWebhook}
-          onOptionsChange={onOptionsChange}
+        <Input
+          placeholder="Paste webhook URL..."
+          defaultValue={url ?? ""}
+          onValueChange={updateUrl}
         />
-      )}
-    </Stack>
-  )
-}
+        <HttpRequestAdvancedConfigForm
+          blockId={blockId}
+          httpRequest={options?.webhook}
+          options={options}
+          onHttpRequestChange={setLocalWebhook}
+          onOptionsChange={onOptionsChange}
+          onNewTestResponse={handleNewTestResponse}
+        />
+      </div>
+      <div ref={bottomRef} />
+    </div>
+  );
+};

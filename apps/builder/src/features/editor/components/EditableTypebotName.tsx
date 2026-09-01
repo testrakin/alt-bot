@@ -1,48 +1,41 @@
-import {
-  Editable,
-  EditablePreview,
-  EditableInput,
-  Tooltip,
-  useColorModeValue,
-} from '@chakra-ui/react'
-import React, { useState } from 'react'
+import { useTranslate } from "@tolgee/react";
+import { Editable } from "@typebot.io/ui/components/Editable";
+import { Tooltip } from "@typebot.io/ui/components/Tooltip";
+import { useState } from "react";
 
 type EditableProps = {
-  defaultName: string
-  onNewName: (newName: string) => void
-}
+  defaultName: string;
+  onNewName: (newName: string) => void;
+};
 export const EditableTypebotName = ({
   defaultName,
   onNewName,
 }: EditableProps) => {
-  const emptyNameBg = useColorModeValue('gray.100', 'gray.700')
-  const [currentName, setCurrentName] = useState(defaultName)
+  const { t } = useTranslate();
+  const [currentName, setCurrentName] = useState(defaultName);
 
   const submitNewName = (newName: string) => {
-    if (newName === '') return setCurrentName(defaultName)
-    if (newName === defaultName) return
-    onNewName(newName)
-  }
+    if (newName === "") return setCurrentName(defaultName);
+    if (newName === defaultName) return;
+    onNewName(newName);
+  };
 
   return (
-    <Tooltip label="Rename">
-      <Editable
-        value={currentName}
-        onChange={setCurrentName}
-        onSubmit={submitNewName}
-      >
-        <EditablePreview
-          noOfLines={2}
-          cursor="pointer"
-          maxW="150px"
-          overflow="hidden"
-          fontSize="14px"
-          minW="30px"
-          minH="20px"
-          bgColor={currentName === '' ? emptyNameBg : 'inherit'}
-        />
-        <EditableInput fontSize="14px" />
-      </Editable>
-    </Tooltip>
-  )
-}
+    <Tooltip.Root>
+      <Tooltip.Trigger
+        render={
+          <Editable.Root
+            className="text-sm max-w-[232px]"
+            value={currentName}
+            onValueChange={setCurrentName}
+            onValueCommit={submitNewName}
+          >
+            <Editable.Input />
+            <Editable.Preview />
+          </Editable.Root>
+        }
+      />
+      <Tooltip.Popup>{t("rename")}</Tooltip.Popup>
+    </Tooltip.Root>
+  );
+};

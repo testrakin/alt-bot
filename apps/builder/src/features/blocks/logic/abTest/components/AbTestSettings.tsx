@@ -1,29 +1,30 @@
-import { Stack } from '@chakra-ui/react'
-import React from 'react'
-import { isDefined } from '@typebot.io/lib'
-import { AbTestBlock } from '@typebot.io/schemas'
-import { NumberInput } from '@/components/inputs'
+import { defaultAbTestOptions } from "@typebot.io/blocks-logic/abTest/constants";
+import type { AbTestBlock } from "@typebot.io/blocks-logic/abTest/schema";
+import { isDefined } from "@typebot.io/lib/utils";
+import { Field } from "@typebot.io/ui/components/Field";
+import { BasicNumberInput } from "@/components/inputs/BasicNumberInput";
 
 type Props = {
-  options: AbTestBlock['options']
-  onOptionsChange: (options: AbTestBlock['options']) => void
-}
+  options: AbTestBlock["options"];
+  onOptionsChange: (options: AbTestBlock["options"]) => void;
+};
 
 export const AbTestSettings = ({ options, onOptionsChange }: Props) => {
   const updateAPercent = (aPercent?: number) =>
-    isDefined(aPercent) ? onOptionsChange({ ...options, aPercent }) : null
+    isDefined(aPercent) ? onOptionsChange({ ...options, aPercent }) : null;
 
   return (
-    <Stack spacing={4}>
-      <NumberInput
-        defaultValue={options.aPercent}
-        onValueChange={updateAPercent}
-        withVariableButton={false}
-        label="Percent of users to follow A:"
-        direction="column"
-        max={100}
-        min={0}
-      />
-    </Stack>
-  )
-}
+    <div className="flex flex-col gap-4">
+      <Field.Root>
+        <Field.Label>Percent of users to follow A:</Field.Label>
+        <BasicNumberInput
+          defaultValue={options?.aPercent ?? defaultAbTestOptions.aPercent}
+          onValueChange={updateAPercent}
+          withVariableButton={false}
+          max={100}
+          min={0}
+        />
+      </Field.Root>
+    </div>
+  );
+};

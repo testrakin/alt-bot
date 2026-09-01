@@ -1,61 +1,140 @@
-import { Flex, FormLabel, Stack, Switch } from '@chakra-ui/react'
-import { TypingEmulation } from '@typebot.io/schemas'
-import React from 'react'
-import { isDefined } from '@typebot.io/lib'
-import { NumberInput } from '@/components/inputs'
+import { useTranslate } from "@tolgee/react";
+import { isDefined } from "@typebot.io/lib/utils";
+import {
+  defaultSettings,
+  maxTypingEmulationMaxDelay,
+} from "@typebot.io/settings/constants";
+import type { Settings } from "@typebot.io/settings/schemas";
+import { Field } from "@typebot.io/ui/components/Field";
+import { MoreInfoTooltip } from "@typebot.io/ui/components/MoreInfoTooltip";
+import { Switch } from "@typebot.io/ui/components/Switch";
+import { BasicNumberInput } from "@/components/inputs/BasicNumberInput";
 
 type Props = {
-  typingEmulation: TypingEmulation
-  onUpdate: (typingEmulation: TypingEmulation) => void
-}
+  typingEmulation: Settings["typingEmulation"];
+  onUpdate: (typingEmulation: Settings["typingEmulation"]) => void;
+};
 
 export const TypingEmulationForm = ({ typingEmulation, onUpdate }: Props) => {
-  const handleSwitchChange = () =>
+  const { t } = useTranslate();
+  const updateIsEnabled = (enabled: boolean) =>
     onUpdate({
       ...typingEmulation,
-      enabled: !typingEmulation.enabled,
-    })
+      enabled,
+    });
 
-  const handleSpeedChange = (speed?: number) =>
-    isDefined(speed) && onUpdate({ ...typingEmulation, speed })
+  const updateSpeed = (speed?: number) =>
+    onUpdate({ ...typingEmulation, speed });
 
-  const handleMaxDelayChange = (maxDelay?: number) =>
-    isDefined(maxDelay) && onUpdate({ ...typingEmulation, maxDelay })
+  const updateMaxDelay = (maxDelay?: number) =>
+    onUpdate({
+      ...typingEmulation,
+      maxDelay: isDefined(maxDelay)
+        ? Math.max(Math.min(maxDelay, 5), 0)
+        : undefined,
+    });
+
+  const updateIsDisabledOnFirstMessage = (isDisabledOnFirstMessage: boolean) =>
+    onUpdate({
+      ...typingEmulation,
+      isDisabledOnFirstMessage,
+    });
+
+  const updateDelayBetweenBubbles = (delayBetweenBubbles?: number) =>
+    onUpdate({ ...typingEmulation, delayBetweenBubbles });
 
   return (
-    <Stack spacing={6}>
-      <Flex justifyContent="space-between" align="center">
-        <FormLabel htmlFor="typing-emulation" mb="0">
-          Typing emulation
-        </FormLabel>
-        <Switch
-          id="typing-emulation"
-          isChecked={typingEmulation.enabled}
-          onChange={handleSwitchChange}
-        />
-      </Flex>
-      {typingEmulation.enabled && (
-        <Stack pl={10}>
-          <NumberInput
-            label="Words per minutes:"
-            data-testid="speed"
-            defaultValue={typingEmulation.speed}
-            onValueChange={handleSpeedChange}
-            withVariableButton={false}
-            maxW="100px"
-            step={30}
+    <div className="flex flex-col gap-6">
+      <Field.Container>
+        <Field.Root className="flex-row items-center">
+          <Switch
+            checked={
+              typingEmulation?.enabled ??
+              defaultSettings.typingEmulation.enabled
+            }
+            onCheckedChange={updateIsEnabled}
           />
-          <NumberInput
-            label="Max delay (in seconds):"
-            data-testid="max-delay"
-            defaultValue={typingEmulation.maxDelay}
-            onValueChange={handleMaxDelayChange}
+          <Field.Label>{t("settings.sideMenu.typing.emulation")}</Field.Label>
+        </Field.Root>
+        {typingEmulation?.enabled ??
+          (defaultSettings.typingEmulation.enabled && (
+            <>
+              <Field.Root className="flex-row">
+                <Field.Label>
+                  {t("settings.sideMenu.typing.emulation.speed.label")}
+                </Field.Label>
+                <BasicNumberInput
+                  defaultValue={
+                    typingEmulation?.speed ??
+                    defaultSettings.typingEmulation.speed
+                  }
+                  onValueChange={updateSpeed}
+                  withVariableButton={false}
+                  className="max-w-40"
+                  step={30}
+                />
+              </Field.Root>
+
+              <Field.Root className="flex-row inline-flex items-center">
+                <Field.Label>
+                  {t("settings.sideMenu.typing.emulation.maxDelay.label")}
+                </Field.Label>
+                <BasicNumberInput
+                  defaultValue={
+                    typingEmulation?.maxDelay ??
+                    defaultSettings.typingEmulation.maxDelay
+                  }
+                  className="max-w-40"
+                  onValueChange={updateMaxDelay}
+                  withVariableButton={false}
+                  min={0}
+                  max={maxTypingEmulationMaxDelay}
+                  step={0.1}
+                />
+                {t("seconds")}
+              </Field.Root>
+
+              <Field.Root className="flex-row items-center">
+                <Switch
+                  checked={
+                    typingEmulation?.isDisabledOnFirstMessage ??
+                    defaultSettings.typingEmulation.isDisabledOnFirstMessage
+                  }
+                  onCheckedChange={updateIsDisabledOnFirstMessage}
+                />
+                <Field.Label>
+                  {t(
+                    "settings.sideMenu.typing.emulation.disabledOnFirstMessage.label",
+                  )}{" "}
+                  <MoreInfoTooltip>
+                    {t(
+                      "settings.sideMenu.typing.emulation.disabledOnFirstMessage.tooltip",
+                    )}
+                  </MoreInfoTooltip>
+                </Field.Label>
+              </Field.Root>
+            </>
+          ))}
+      </Field.Container>
+      <Field.Root>
+        <Field.Label>
+          {t("settings.sideMenu.typing.emulation.delayBetweenBubbles")}
+        </Field.Label>
+        <div className="inline-flex items-center gap-1">
+          <BasicNumberInput
+            defaultValue={
+              typingEmulation?.delayBetweenBubbles ??
+              defaultSettings.typingEmulation.delayBetweenBubbles
+            }
+            className="max-w-40"
             withVariableButton={false}
-            maxW="100px"
-            step={0.1}
+            onValueChange={updateDelayBetweenBubbles}
+            min={0}
+            max={5}
           />
-        </Stack>
-      )}
-    </Stack>
-  )
-}
+          <span>{t("seconds")}</span>
+        </div>
+      </Field.Root>
+    </div>
+  );
+};

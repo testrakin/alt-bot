@@ -1,66 +1,48 @@
-import React from 'react'
-import { Flex, Stack, useColorModeValue, Text, Tag } from '@chakra-ui/react'
-import { AbTestBlock } from '@typebot.io/schemas'
-import { SourceEndpoint } from '@/features/graph/components/endpoints/SourceEndpoint'
+import { defaultAbTestOptions } from "@typebot.io/blocks-logic/abTest/constants";
+import type { AbTestBlock } from "@typebot.io/blocks-logic/abTest/schema";
+import { Badge } from "@typebot.io/ui/components/Badge";
+import { BlockSourceEndpoint } from "@/features/graph/components/endpoints/BlockSourceEndpoint";
 
 type Props = {
-  block: AbTestBlock
-}
+  block: AbTestBlock;
+  groupId: string;
+};
 
-export const AbTestNodeBody = ({ block }: Props) => {
-  const borderColor = useColorModeValue('gray.200', 'gray.700')
-  const bg = useColorModeValue('white', undefined)
-
+export const AbTestNodeBody = ({ block, groupId }: Props) => {
   return (
-    <Stack spacing={2} w="full">
-      <Flex
-        pos="relative"
-        align="center"
-        shadow="sm"
-        rounded="md"
-        bg={bg}
-        borderWidth={'1px'}
-        borderColor={borderColor}
-        w="full"
-      >
-        <Text p="3">
-          A <Tag>{block.options.aPercent}%</Tag>
-        </Text>
-        <SourceEndpoint
+    <div className="flex flex-col gap-2 w-full">
+      <div className="flex relative items-center shadow-sm rounded-md border w-full bg-gray-1">
+        <p className="p-3">
+          A{" "}
+          <Badge>
+            {block.options?.aPercent ?? defaultAbTestOptions.aPercent}%
+          </Badge>
+        </p>
+        <BlockSourceEndpoint
           source={{
-            groupId: block.groupId,
             blockId: block.id,
             itemId: block.items[0].id,
           }}
-          pos="absolute"
-          right="-49px"
-          pointerEvents="all"
+          groupId={groupId}
+          className="absolute right-[-49px] pointer-events-[all]"
         />
-      </Flex>
-      <Flex
-        pos="relative"
-        align="center"
-        shadow="sm"
-        rounded="md"
-        bg={bg}
-        borderWidth={'1px'}
-        borderColor={borderColor}
-        w="full"
-      >
-        <Text p="3">
-          B <Tag>{100 - block.options.aPercent}%</Tag>
-        </Text>
-        <SourceEndpoint
+      </div>
+      <div className="flex relative items-center shadow-sm rounded-md border w-full bg-gray-1">
+        <p className="p-3">
+          B{" "}
+          <Badge>
+            {100 - (block.options?.aPercent ?? defaultAbTestOptions.aPercent)}%
+          </Badge>
+        </p>
+        <BlockSourceEndpoint
           source={{
-            groupId: block.groupId,
             blockId: block.id,
             itemId: block.items[1].id,
           }}
-          pos="absolute"
-          right="-49px"
-          pointerEvents="all"
+          groupId={groupId}
+          className="absolute right-[-49px] pointer-events-[all]"
         />
-      </Flex>
-    </Stack>
-  )
-}
+      </div>
+    </div>
+  );
+};

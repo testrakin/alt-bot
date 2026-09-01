@@ -1,231 +1,271 @@
-import {
-  LogicBlockType,
+import { ORPCError } from "@orpc/client";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { isDefined, omit } from "@typebot.io/lib/utils";
+import type {
   PublicTypebot,
-  Typebot,
-  Webhook,
-} from '@typebot.io/schemas'
-import { Router, useRouter } from 'next/router'
+  PublicTypebotV6,
+} from "@typebot.io/typebot/schemas/publicTypebot";
+import {
+  type TypebotV6,
+  typebotV6Schema,
+} from "@typebot.io/typebot/schemas/typebot";
+import { dequal } from "dequal";
+import { Router } from "next/router";
 import {
   createContext,
-  ReactNode,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,
   useMemo,
-  useState,
-} from 'react'
-import { isDefined, omit } from '@typebot.io/lib'
-import { edgesAction, EdgesActions } from './typebotActions/edges'
-import { itemsAction, ItemsActions } from './typebotActions/items'
-import { GroupsActions, groupsActions } from './typebotActions/groups'
-import { blocksAction, BlocksActions } from './typebotActions/blocks'
-import { variablesAction, VariablesActions } from './typebotActions/variables'
-import { dequal } from 'dequal'
-import { useToast } from '@/hooks/useToast'
-import { useTypebotQuery } from '@/hooks/useTypebotQuery'
-import { useUndo } from '../hooks/useUndo'
-import { updateTypebotQuery } from '../queries/updateTypebotQuery'
-import { updateWebhookQuery } from '@/features/blocks/integrations/webhook/queries/updateWebhookQuery'
-import { useAutoSave } from '@/hooks/useAutoSave'
-import { createWebhookQuery } from '@/features/blocks/integrations/webhook/queries/createWebhookQuery'
-import { duplicateWebhookQuery } from '@/features/blocks/integrations/webhook/queries/duplicateWebhookQuery'
-import { parseDefaultPublicId } from '@/features/publish/helpers/parseDefaultPublicId'
-import { createPublishedTypebotQuery } from '@/features/publish/queries/createPublishedTypebotQuery'
-import { deletePublishedTypebotQuery } from '@/features/publish/queries/deletePublishedTypebotQuery'
-import { updatePublishedTypebotQuery } from '@/features/publish/queries/updatePublishedTypebotQuery'
-import { preventUserFromRefreshing } from '@/helpers/preventUserFromRefreshing'
-import { areTypebotsEqual } from '@/features/publish/helpers/areTypebotsEqual'
-import { isPublished as isPublishedHelper } from '@/features/publish/helpers/isPublished'
-import { convertTypebotToPublicTypebot } from '@/features/publish/helpers/convertTypebotToPublicTypebot'
-import { convertPublicTypebotToTypebot } from '@/features/publish/helpers/convertPublicTypebotToTypebot'
-import { trpc } from '@/lib/trpc'
+} from "react";
+import { NotFoundPage } from "@/components/NotFoundPage";
+import { useSelectionStore } from "@/features/graph/hooks/useSelectionStore";
+import { areTypebotsEqual } from "@/features/publish/helpers/areTypebotsEqual";
+import { convertPublicTypebotToTypebot } from "@/features/publish/helpers/convertPublicTypebotToTypebot";
+import { isPublished as isPublishedHelper } from "@/features/publish/helpers/isPublished";
+import { preventUserFromRefreshing } from "@/helpers/preventUserFromRefreshing";
+import { useAutoSave } from "@/hooks/useAutoSave";
+import { orpc } from "@/lib/queryClient";
+import { toast } from "@/lib/toast";
+import { useUndo } from "../hooks/useUndo";
+import { type BlocksActions, blocksAction } from "./typebotActions/blocks";
+import { type EdgesActions, edgesAction } from "./typebotActions/edges";
+import { type EventsActions, eventsActions } from "./typebotActions/events";
+import { type GroupsActions, groupsActions } from "./typebotActions/groups";
+import { type ItemsActions, itemsAction } from "./typebotActions/items";
+import {
+  type VariablesActions,
+  variablesAction,
+} from "./typebotActions/variables";
 
-const autoSaveTimeout = 10000
+const autoSaveTimeout = 15000;
 
 type UpdateTypebotPayload = Partial<
   Pick<
-    Typebot,
-    | 'theme'
-    | 'selectedThemeTemplateId'
-    | 'settings'
-    | 'publicId'
-    | 'name'
-    | 'icon'
-    | 'customDomain'
-    | 'resultsTablePreferences'
-    | 'isClosed'
+    TypebotV6,
+    | "theme"
+    | "selectedThemeTemplateId"
+    | "settings"
+    | "publicId"
+    | "name"
+    | "icon"
+    | "customDomain"
+    | "resultsTablePreferences"
+    | "isClosed"
+    | "whatsAppCredentialsId"
+    | "riskLevel"
   >
->
+>;
 
 export type SetTypebot = (
-  newPresent: Typebot | ((current: Typebot) => Typebot)
-) => void
+  newPresent: TypebotV6 | ((current: TypebotV6) => TypebotV6),
+) => void;
 
 const typebotContext = createContext<
   {
-    typebot?: Typebot
-    publishedTypebot?: PublicTypebot
-    linkedTypebots?: Pick<Typebot, 'id' | 'groups' | 'variables' | 'name'>[]
-    webhooks: Webhook[]
-    isReadOnly?: boolean
-    isPublished: boolean
-    isPublishing: boolean
-    isSavingLoading: boolean
-    save: () => Promise<void>
-    undo: () => void
-    redo: () => void
-    canRedo: boolean
-    canUndo: boolean
-    updateWebhook: (
-      webhookId: string,
-      webhook: Partial<Webhook>
-    ) => Promise<void>
-    updateTypebot: (updates: UpdateTypebotPayload) => void
-    publishTypebot: () => void
-    unpublishTypebot: () => void
-    restorePublishedTypebot: () => void
+    typebot?: TypebotV6;
+    publishedTypebot?: PublicTypebotV6;
+    publishedTypebotVersion?: PublicTypebot["version"];
+    currentUserMode: "guest" | "read" | "write";
+    isPublished: boolean;
+    isSavingLoading: boolean;
+    save: (
+      updates?: Partial<TypebotV6>,
+      overwrite?: boolean,
+    ) => Promise<"saved" | "unchanged" | "failed">;
+    undo: () => void;
+    redo: () => void;
+    canRedo: boolean;
+    canUndo: boolean;
+    updateTypebot: (props: {
+      updates: UpdateTypebotPayload;
+      save?: boolean;
+      overwrite?: boolean;
+    }) => Promise<TypebotV6 | undefined>;
+    restorePublishedTypebot: () => void;
   } & GroupsActions &
     BlocksActions &
     ItemsActions &
     VariablesActions &
-    EdgesActions
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  //@ts-ignore
->({})
+    EdgesActions &
+    EventsActions
+  //@ts-expect-error
+>({});
 
 export const TypebotProvider = ({
   children,
   typebotId,
 }: {
-  children: ReactNode
-  typebotId?: string
+  children: ReactNode;
+  typebotId?: string;
 }) => {
-  const { push } = useRouter()
-  const { showToast } = useToast()
+  const setElementsCoordinates = useSelectionStore(
+    (state) => state.setElementsCoordinates,
+  );
 
   const {
-    typebot,
-    publishedTypebot,
-    webhooks,
-    isReadOnly,
+    data: typebotData,
     isLoading: isFetchingTypebot,
-    mutate,
-  } = useTypebotQuery({
-    typebotId,
-  })
+    refetch: refetchTypebot,
+    error: typebotError,
+  } = useQuery(
+    orpc.typebot.getTypebot.queryOptions({
+      input: { typebotId: typebotId as string, migrateToLatestVersion: true },
+      enabled: isDefined(typebotId),
+      retry: 0,
+    }),
+  );
+
+  const { data: publishedTypebotData, refetch: refetchPublishedTypebot } =
+    useQuery(
+      orpc.typebot.getPublishedTypebot.queryOptions({
+        input: { typebotId: typebotId as string, migrateToLatestVersion: true },
+        enabled:
+          isDefined(typebotId) &&
+          (typebotData?.currentUserMode === "read" ||
+            typebotData?.currentUserMode === "write"),
+      }),
+    );
+
+  const { mutateAsync: updateTypebot, status: updateTypebotStatus } =
+    useMutation(
+      orpc.typebot.updateTypebot.mutationOptions({
+        onError: (error) => {
+          if (error instanceof ORPCError && error.code === "CONFLICT") {
+            toast({
+              title: "Could not update the typebot",
+              description:
+                "We detected that the typebot was updated since you last saved it so we couldn't save your current changes. If it is not expected, we suggest you overwrite the changes.",
+              actionProps: {
+                disabled: updateTypebotStatus === "pending",
+                children: "Overwrite",
+                onClick: async () => {
+                  await saveTypebot(undefined, true);
+                },
+              },
+            });
+            return;
+          }
+          toast({
+            title: "Error while updating typebot",
+            description: error.message,
+          });
+        },
+        onSuccess: (_data, variables) => {
+          if (!typebotId) return;
+          refetchTypebot();
+          if (variables.typebot.whatsAppCredentialsId === null)
+            refetchPublishedTypebot();
+        },
+      }),
+    );
+
+  const typebot = typebotData?.typebot as TypebotV6;
+  const publishedTypebot = (publishedTypebotData?.publishedTypebot ??
+    undefined) as PublicTypebotV6 | undefined;
+  const isReadOnly =
+    typebotData &&
+    ["read", "guest"].includes(typebotData?.currentUserMode ?? "guest");
 
   const [
     localTypebot,
-    { redo, undo, flush, canRedo, canUndo, set: setLocalTypebot },
-  ] = useUndo<Typebot>(undefined)
-
-  const linkedTypebotIds =
-    localTypebot?.groups
-      .flatMap((b) => b.blocks)
-      .reduce<string[]>(
-        (typebotIds, block) =>
-          block.type === LogicBlockType.TYPEBOT_LINK &&
-          isDefined(block.options.typebotId) &&
-          !typebotIds.includes(block.options.typebotId)
-            ? [...typebotIds, block.options.typebotId]
-            : typebotIds,
-        []
-      ) ?? []
-
-  const { data: linkedTypebotsData } = trpc.getLinkedTypebots.useQuery(
     {
-      workspaceId: localTypebot?.workspaceId as string,
-      typebotIds: linkedTypebotIds.join(','),
+      redo,
+      undo,
+      flush,
+      canRedo,
+      canUndo,
+      set: setLocalTypebot,
+      setUpdateDate,
     },
-    {
-      enabled:
-        isDefined(localTypebot?.workspaceId) && linkedTypebotIds.length > 0,
-      onError: (error) =>
-        showToast({
-          title: 'Error while fetching linkedTypebots',
-          description: error.message,
-        }),
-    }
-  )
+  ] = useUndo<TypebotV6>(undefined, {
+    isReadOnly,
+    onUndo: (t) => {
+      setElementsCoordinates({
+        groups: t.groups,
+        events: t.events,
+      });
+    },
+    onRedo: (t) => {
+      setElementsCoordinates({
+        groups: t.groups,
+        events: t.events,
+      });
+    },
+  });
 
   useEffect(() => {
-    if (!typebot && isDefined(localTypebot)) setLocalTypebot(undefined)
-    if (isFetchingTypebot) return
-    if (!typebot) {
-      showToast({ status: 'info', description: "Couldn't find typebot" })
-      push('/typebots')
-      return
+    if (!typebot && isDefined(localTypebot)) {
+      setLocalTypebot(undefined);
+      setElementsCoordinates(undefined);
     }
+    if (isFetchingTypebot || !typebot) return;
     if (
       typebot.id !== localTypebot?.id ||
       new Date(typebot.updatedAt).getTime() >
         new Date(localTypebot.updatedAt).getTime()
     ) {
-      setLocalTypebot({ ...typebot })
-      flush()
+      setLocalTypebot({ ...typebot });
+      setElementsCoordinates({
+        groups: typebot.groups,
+        events: typebot.events,
+      });
+      flush();
     }
   }, [
     flush,
     isFetchingTypebot,
     localTypebot,
-    push,
+    setElementsCoordinates,
     setLocalTypebot,
-    showToast,
     typebot,
-  ])
+  ]);
 
   const saveTypebot = useCallback(
-    async (updates?: Partial<Typebot>) => {
-      if (!localTypebot || !typebot) return
-      const typebotToSave = { ...localTypebot, ...updates }
-      if (dequal(omit(typebot, 'updatedAt'), omit(typebotToSave, 'updatedAt')))
-        return
-      setIsSavingLoading(true)
-      const { data, error } = await updateTypebotQuery(
-        typebotToSave.id,
-        typebotToSave
+    async (updates?: Partial<TypebotV6>, overwrite?: boolean) => {
+      if (!localTypebot || !typebot) return "failed";
+      if (isReadOnly) return "unchanged";
+      const typebotToSave = {
+        ...localTypebot,
+        ...updates,
+      };
+      if (
+        dequal(
+          JSON.parse(JSON.stringify(omit(typebot, "updatedAt"))),
+          JSON.parse(JSON.stringify(omit(typebotToSave, "updatedAt"))),
+        )
       )
-      if (data?.typebot) setLocalTypebot({ ...data.typebot })
-      setIsSavingLoading(false)
-      if (error) {
-        showToast({ title: error.name, description: error.message })
-        return
+        return "unchanged";
+      try {
+        const newParsedTypebot = typebotV6Schema.parse({ ...typebotToSave });
+        setLocalTypebot(newParsedTypebot);
+        const { typebot } = await updateTypebot({
+          typebotId: newParsedTypebot.id,
+          typebot: newParsedTypebot,
+          overwrite,
+        });
+        setUpdateDate(typebot.updatedAt);
+        if (overwrite) {
+          setLocalTypebot(typebot);
+        }
+        return "saved";
+      } catch {
+        setLocalTypebot({
+          ...localTypebot,
+        });
+        return "failed";
       }
-      mutate({
-        typebot: typebotToSave,
-        publishedTypebot,
-        webhooks: webhooks ?? [],
-      })
-      window.removeEventListener('beforeunload', preventUserFromRefreshing)
     },
     [
+      isReadOnly,
       localTypebot,
-      mutate,
-      publishedTypebot,
       setLocalTypebot,
-      showToast,
+      setUpdateDate,
       typebot,
-      webhooks,
-    ]
-  )
-
-  const savePublishedTypebot = async (newPublishedTypebot: PublicTypebot) => {
-    if (!localTypebot) return
-    setIsPublishing(true)
-    const { error } = await updatePublishedTypebotQuery(
-      newPublishedTypebot.id,
-      newPublishedTypebot,
-      localTypebot.workspaceId
-    )
-    setIsPublishing(false)
-    if (error)
-      return showToast({ title: error.name, description: error.message })
-    mutate({
-      typebot: localTypebot,
-      publishedTypebot: newPublishedTypebot,
-      webhooks: webhooks ?? [],
-    })
-  }
+      updateTypebot,
+    ],
+  );
 
   useAutoSave(
     {
@@ -233,195 +273,91 @@ export const TypebotProvider = ({
       item: localTypebot,
       debounceTimeout: autoSaveTimeout,
     },
-    [saveTypebot, localTypebot]
-  )
+    [saveTypebot, localTypebot],
+  );
 
   useEffect(() => {
     const handleSaveTypebot = () => {
-      saveTypebot()
-    }
-    Router.events.on('routeChangeStart', handleSaveTypebot)
+      saveTypebot();
+    };
+    Router.events.on("routeChangeStart", handleSaveTypebot);
     return () => {
-      Router.events.off('routeChangeStart', handleSaveTypebot)
-    }
-  }, [saveTypebot])
-
-  const [isSavingLoading, setIsSavingLoading] = useState(false)
-  const [isPublishing, setIsPublishing] = useState(false)
+      Router.events.off("routeChangeStart", handleSaveTypebot);
+    };
+  }, [saveTypebot]);
 
   const isPublished = useMemo(
     () =>
       isDefined(localTypebot) &&
+      isDefined(localTypebot.publicId) &&
       isDefined(publishedTypebot) &&
       isPublishedHelper(localTypebot, publishedTypebot),
-    [localTypebot, publishedTypebot]
-  )
+    [localTypebot, publishedTypebot],
+  );
 
   useEffect(() => {
-    if (!localTypebot || !typebot) return
+    if (!localTypebot || !typebot || isReadOnly) return;
     if (!areTypebotsEqual(localTypebot, typebot)) {
-      window.addEventListener('beforeunload', preventUserFromRefreshing)
+      window.addEventListener("beforeunload", preventUserFromRefreshing);
     }
 
     return () => {
-      window.removeEventListener('beforeunload', preventUserFromRefreshing)
-    }
-  }, [localTypebot, typebot])
+      window.removeEventListener("beforeunload", preventUserFromRefreshing);
+    };
+  }, [localTypebot, typebot, isReadOnly]);
 
-  const updateLocalTypebot = (updates: UpdateTypebotPayload) =>
-    localTypebot && setLocalTypebot({ ...localTypebot, ...updates })
-
-  const publishTypebot = async () => {
-    if (!localTypebot) return
-    const newLocalTypebot = { ...localTypebot }
-    if (!publishedTypebot || !localTypebot.publicId) {
-      const newPublicId =
-        localTypebot.publicId ??
-        parseDefaultPublicId(localTypebot.name, localTypebot.id)
-      newLocalTypebot.publicId = newPublicId
-      await saveTypebot({ publicId: newPublicId })
-    }
-    if (publishedTypebot) {
-      await savePublishedTypebot({
-        ...convertTypebotToPublicTypebot(newLocalTypebot),
-        id: publishedTypebot.id,
-      })
-    } else {
-      setIsPublishing(true)
-      const { data, error } = await createPublishedTypebotQuery(
-        {
-          ...omit(convertTypebotToPublicTypebot(newLocalTypebot), 'id'),
-        },
-        localTypebot.workspaceId
-      )
-      setIsPublishing(false)
-      if (error)
-        return showToast({ title: error.name, description: error.message })
-      mutate({
-        typebot: localTypebot,
-        publishedTypebot: data,
-        webhooks: webhooks ?? [],
-      })
-    }
-  }
-
-  const unpublishTypebot = async () => {
-    if (!publishedTypebot || !localTypebot) return
-    setIsPublishing(true)
-    const { error } = await deletePublishedTypebotQuery({
-      publishedTypebotId: publishedTypebot.id,
-      typebotId: localTypebot.id,
-    })
-    setIsPublishing(false)
-    if (error) showToast({ description: error.message })
-    mutate({
-      typebot: localTypebot,
-      webhooks: webhooks ?? [],
-    })
-  }
+  const updateLocalTypebot = async ({
+    updates,
+    save,
+    overwrite,
+  }: {
+    updates: UpdateTypebotPayload;
+    save?: boolean;
+    overwrite?: boolean;
+  }) => {
+    if (!localTypebot || isReadOnly) return;
+    const newTypebot = { ...localTypebot, ...updates };
+    setLocalTypebot(newTypebot);
+    if (save) await saveTypebot(newTypebot, overwrite);
+    return newTypebot;
+  };
 
   const restorePublishedTypebot = () => {
-    if (!publishedTypebot || !localTypebot) return
+    if (!publishedTypebot || !localTypebot) return;
     setLocalTypebot(
-      convertPublicTypebotToTypebot(publishedTypebot, localTypebot)
-    )
-    return saveTypebot()
-  }
+      convertPublicTypebotToTypebot(publishedTypebot, localTypebot),
+    );
+  };
 
-  const updateWebhook = useCallback(
-    async (webhookId: string, updates: Partial<Webhook>) => {
-      if (!typebot) return
-      const { data } = await updateWebhookQuery({
-        typebotId: typebot.id,
-        webhookId,
-        data: updates,
-      })
-      if (data)
-        mutate({
-          typebot,
-          publishedTypebot,
-          webhooks: (webhooks ?? []).map((w) =>
-            w.id === webhookId ? data.webhook : w
-          ),
-        })
-    },
-    [mutate, publishedTypebot, typebot, webhooks]
-  )
-
-  const createWebhook = async (data: Partial<Webhook>) => {
-    if (!typebot) return
-    const response = await createWebhookQuery({
-      typebotId: typebot.id,
-      data,
-    })
-    if (!response.data?.webhook) return
-    mutate({
-      typebot,
-      publishedTypebot,
-      webhooks: (webhooks ?? []).concat(response.data?.webhook),
-    })
-  }
-
-  const duplicateWebhook = async (
-    existingWebhookId: string,
-    newWebhookId: string
-  ) => {
-    if (!typebot) return
-    const newWebhook = await duplicateWebhookQuery({
-      existingIds: {
-        typebotId: typebot.id,
-        webhookId: existingWebhookId,
-      },
-      newIds: {
-        typebotId: typebot.id,
-        webhookId: newWebhookId,
-      },
-    })
-    if (!newWebhook) return
-    mutate({
-      typebot,
-      publishedTypebot,
-      webhooks: (webhooks ?? []).concat(newWebhook),
-    })
-  }
-
+  if (typebotError instanceof ORPCError && typebotError.code === "NOT_FOUND")
+    return <NotFoundPage resourceName="Typebot" />;
   return (
     <typebotContext.Provider
       value={{
         typebot: localTypebot,
         publishedTypebot,
-        linkedTypebots: linkedTypebotsData?.typebots ?? [],
-        webhooks: webhooks ?? [],
-        isReadOnly,
-        isSavingLoading,
+        publishedTypebotVersion: publishedTypebotData?.version,
+        currentUserMode: typebotData?.currentUserMode ?? "guest",
+        isSavingLoading: updateTypebotStatus === "pending",
         save: saveTypebot,
         undo,
         redo,
         canUndo,
         canRedo,
-        publishTypebot,
-        unpublishTypebot,
-        isPublishing,
         isPublished,
         updateTypebot: updateLocalTypebot,
         restorePublishedTypebot,
-        updateWebhook,
-        ...groupsActions(setLocalTypebot as SetTypebot, {
-          onWebhookBlockCreated: createWebhook,
-          onWebhookBlockDuplicated: duplicateWebhook,
-        }),
-        ...blocksAction(setLocalTypebot as SetTypebot, {
-          onWebhookBlockCreated: createWebhook,
-          onWebhookBlockDuplicated: duplicateWebhook,
-        }),
+        ...groupsActions(setLocalTypebot as SetTypebot),
+        ...blocksAction(setLocalTypebot as SetTypebot),
         ...variablesAction(setLocalTypebot as SetTypebot),
         ...edgesAction(setLocalTypebot as SetTypebot),
         ...itemsAction(setLocalTypebot as SetTypebot),
+        ...eventsActions(setLocalTypebot as SetTypebot),
       }}
     >
       {children}
     </typebotContext.Provider>
-  )
-}
+  );
+};
 
-export const useTypebot = () => useContext(typebotContext)
+export const useTypebot = () => useContext(typebotContext);

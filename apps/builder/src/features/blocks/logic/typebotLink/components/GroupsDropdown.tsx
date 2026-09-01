@@ -1,33 +1,35 @@
-import { Select } from '@/components/inputs/Select'
-import { Input } from '@chakra-ui/react'
-import { Group } from '@typebot.io/schemas'
-import { parseGroupTitle } from '@typebot.io/lib'
+import type { Group } from "@typebot.io/groups/schemas";
+import { Input } from "@typebot.io/ui/components/Input";
+import { BasicSelect } from "@/components/inputs/BasicSelect";
 
 type Props = {
-  groups: Group[]
-  groupId?: string
-  onGroupIdSelected: (groupId: string | undefined) => void
-  isLoading?: boolean
-}
+  groups: Group[];
+  groupId?: string;
+  onChange: (groupId: string | undefined) => void;
+  isLoading?: boolean;
+};
 
 export const GroupsDropdown = ({
   groups,
   groupId,
-  onGroupIdSelected,
+  onChange,
   isLoading,
 }: Props) => {
-  if (isLoading) return <Input value="Loading..." isDisabled />
+  if (isLoading) return <Input value="Loading..." disabled />;
   if (!groups || groups.length === 0)
-    return <Input value="No groups found" isDisabled />
+    return <Input value="No groups found" disabled />;
+
   return (
-    <Select
-      selectedItem={groupId}
-      items={(groups ?? []).map((group) => ({
-        label: parseGroupTitle(group.title),
+    <BasicSelect
+      className="w-full"
+      items={groups.map((group) => ({
+        label: group.title,
         value: group.id,
       }))}
-      onSelect={onGroupIdSelected}
-      placeholder={'Select a block'}
+      onChange={onChange}
+      includeVariables
+      value={groupId}
+      placeholder="Select a group"
     />
-  )
-}
+  );
+};

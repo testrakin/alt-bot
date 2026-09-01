@@ -1,32 +1,33 @@
-import { Stack, Flex, Text } from '@chakra-ui/react'
-import { ContainerColors } from '@typebot.io/schemas'
-import React from 'react'
-import { ColorPicker } from '../../../../components/ColorPicker'
+import { useTranslate } from "@tolgee/react";
+import type { Theme } from "@typebot.io/theme/schemas";
+import { ColorPicker } from "../../../../components/ColorPicker";
 
 type Props = {
-  buttons: ContainerColors
-  onButtonsChange: (buttons: ContainerColors) => void
-}
+  buttons: NonNullable<Theme["chat"]>["buttons"];
+  onButtonsChange: (buttons: NonNullable<Theme["chat"]>["buttons"]) => void;
+};
 
 export const ButtonsTheme = ({ buttons, onButtonsChange }: Props) => {
+  const { t } = useTranslate();
+
   const handleBackgroundChange = (backgroundColor: string) =>
-    onButtonsChange({ ...buttons, backgroundColor })
+    onButtonsChange({ ...buttons, backgroundColor });
   const handleTextChange = (color: string) =>
-    onButtonsChange({ ...buttons, color })
+    onButtonsChange({ ...buttons, color });
 
   return (
-    <Stack data-testid="buttons-theme">
-      <Flex justify="space-between" align="center">
-        <Text>Background:</Text>
+    <div className="flex flex-col gap-2" data-testid="buttons-theme">
+      <div className="flex justify-between items-center">
+        <p>{t("theme.sideMenu.chat.theme.background")}</p>
         <ColorPicker
-          value={buttons.backgroundColor}
+          value={buttons?.backgroundColor}
           onColorChange={handleBackgroundChange}
         />
-      </Flex>
-      <Flex justify="space-between" align="center">
-        <Text>Text:</Text>
-        <ColorPicker value={buttons.color} onColorChange={handleTextChange} />
-      </Flex>
-    </Stack>
-  )
-}
+      </div>
+      <div className="flex justify-between items-center">
+        <p>{t("theme.sideMenu.chat.theme.text")}</p>
+        <ColorPicker value={buttons?.color} onColorChange={handleTextChange} />
+      </div>
+    </div>
+  );
+};

@@ -1,162 +1,214 @@
-import { Stack, HStack, Text, Switch, Tag } from '@chakra-ui/react'
-import { Plan } from '@typebot.io/prisma'
-import { TextLink } from '@/components/TextLink'
-import { useToast } from '@/hooks/useToast'
-import { trpc } from '@/lib/trpc'
-import { guessIfUserIsEuropean } from '@typebot.io/lib/pricing'
-import { Workspace } from '@typebot.io/schemas'
-import { PreCheckoutModal, PreCheckoutModalProps } from './PreCheckoutModal'
-import { useState } from 'react'
-import { ParentModalProvider } from '@/features/graph/providers/ParentModalProvider'
-import { useUser } from '@/features/account/hooks/useUser'
-import { StarterPlanPricingCard } from './StarterPlanPricingCard'
-import { ProPlanPricingCard } from './ProPlanPricingCard'
-import { useScopedI18n } from '@/locales'
-import { StripeClimateLogo } from './StripeClimateLogo'
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslate } from "@tolgee/react";
+import { isDefined } from "@typebot.io/lib/utils";
+import { Plan } from "@typebot.io/prisma/enum";
+import { useRouter } from "next/router";
+import { useState } from "react";
+import { TextLink } from "@/components/TextLink";
+import type { WorkspaceInApp } from "@/features/workspace/WorkspaceProvider";
+import { isSelfHostedInstance } from "@/helpers/isSelfHostedInstance";
+import { orpc, queryClient } from "@/lib/queryClient";
+import { toast } from "@/lib/toast";
+import { ProPlanPricingCard } from "./ProPlanPricingCard";
+import { StarterPlanPricingCard } from "./StarterPlanPricingCard";
+import { UpgradeConfirmationDialog } from "./UpgradeConfirmationDialog";
 
 type Props = {
-  workspace: Workspace
-  onUpgradeSuccess: () => void
-}
+  workspace: WorkspaceInApp;
+  currentUserMode?: "guest" | "read" | "write";
+  excludedPlans?: ("STARTER" | "PRO")[];
+};
 
-export const ChangePlanForm = ({ workspace, onUpgradeSuccess }: Props) => {
-  const scopedT = useScopedI18n('billing')
+export const ChangePlanForm = ({
+  workspace,
+  currentUserMode,
+  excludedPlans,
+}: Props) => {
+  const { t } = useTranslate();
+  const router = useRouter();
+  const [pendingUpgrade, setPendingUpgrade] = useState<"STARTER" | "PRO">();
+  const [pendingCheckoutRedirect, setPendingCheckoutRedirect] = useState<
+    "STARTER" | "PRO"
+  >();
 
-  const { user } = useUser()
-  const { showToast } = useToast()
-  const [preCheckoutPlan, setPreCheckoutPlan] =
-    useState<PreCheckoutModalProps['selectedSubscription']>()
-  const [isYearly, setIsYearly] = useState(true)
+  const { data, refetch } = useQuery(
+    orpc.billing.getSubscription.queryOptions({
+      input: { workspaceId: workspace.id },
+      enabled: !isSelfHostedInstance(),
+    }),
+  );
 
-  const { data } = trpc.billing.getSubscription.useQuery(
-    {
-      workspaceId: workspace.id,
-    },
-    {
-      onSuccess: ({ subscription }) => {
-        if (isYearly === false) return
-        setIsYearly(subscription?.isYearly ?? true)
+  const { data: pendingUpgradeData, isLoading: isLoadingPendingUpgrade } =
+    useQuery(
+      orpc.billing.getSubscriptionPreview.queryOptions({
+        input: {
+          workspaceId: workspace.id,
+          plan: pendingUpgrade!,
+        },
+        enabled: isDefined(pendingUpgrade),
+      }),
+    );
+
+  const { mutate: createCheckoutSession } = useMutation(
+    orpc.billing.createCheckoutSession.mutationOptions({
+      onSuccess: (data) => {
+        router.push(data.checkoutUrl);
       },
-    }
-  )
-
-  const { mutate: updateSubscription, isLoading: isUpdatingSubscription } =
-    trpc.billing.updateSubscription.useMutation({
       onError: (error) => {
-        showToast({
+        setPendingCheckoutRedirect(undefined);
+        toast({
+          type: "error",
+          title: t("errorMessage"),
           description: error.message,
-        })
+        });
       },
-      onSuccess: ({ workspace: { plan } }) => {
-        onUpgradeSuccess()
-        showToast({
-          status: 'success',
-          description: scopedT('updateSuccessToast.description', { plan }),
-        })
-      },
-    })
+    }),
+  );
 
-  const handlePayClick = async ({
-    plan,
-    selectedChatsLimitIndex,
-    selectedStorageLimitIndex,
-  }: {
-    plan: 'STARTER' | 'PRO'
-    selectedChatsLimitIndex: number
-    selectedStorageLimitIndex: number
-  }) => {
-    if (
-      !user ||
-      selectedChatsLimitIndex === undefined ||
-      selectedStorageLimitIndex === undefined
-    )
-      return
+  const { mutateAsync: updateSubscription, status: updateSubscriptionStatus } =
+    useMutation(
+      orpc.billing.updateSubscription.mutationOptions({
+        onSuccess: (data) => {
+          if (data.type === "checkoutUrl") {
+            window.location.href = data.checkoutUrl;
+            return;
+          }
+          if (data.type === "error") {
+            toast({
+              type: "error",
+              title: data.title,
+              description: data.description ?? undefined,
+            });
+            return;
+          }
+          refetch();
+          queryClient.invalidateQueries({
+            queryKey: orpc.workspace.getWorkspace.key(),
+          });
+          toast({
+            type: "success",
+            description: t("billing.updateSuccessToast.description", {
+              plan: pendingUpgrade,
+            }),
+          });
+        },
+      }),
+    );
 
+  const handlePayClick = async (plan: "STARTER" | "PRO") => {
     const newSubscription = {
       plan,
       workspaceId: workspace.id,
-      additionalChats: selectedChatsLimitIndex,
-      additionalStorage: selectedStorageLimitIndex,
-      currency:
-        data?.subscription?.currency ??
-        (guessIfUserIsEuropean() ? 'eur' : 'usd'),
-      isYearly,
-    } as const
+    } as const;
     if (workspace.stripeId) {
-      updateSubscription(newSubscription)
+      const isUpgrade = isUpgradingPlan(workspace.plan, plan);
+      if (isUpgrade) {
+        setPendingUpgrade(plan);
+      } else {
+        updateSubscription({
+          ...newSubscription,
+          returnUrl: window.location.href,
+        });
+      }
     } else {
-      setPreCheckoutPlan(newSubscription)
+      setPendingCheckoutRedirect(plan);
+      createCheckoutSession({
+        workspaceId: workspace.id,
+        returnUrl: window.location.href,
+        plan,
+      });
     }
-  }
+  };
 
-  if (data?.subscription?.cancelDate) return null
+  const handleConfirmUpgrade = async () => {
+    if (!pendingUpgrade) return;
+    await updateSubscription({
+      plan: pendingUpgrade,
+      workspaceId: workspace.id,
+      returnUrl: window.location.href,
+    });
+  };
+
+  if (
+    data?.subscription?.cancelDate ||
+    data?.subscription?.status === "past_due"
+  )
+    return null;
+
+  const isSubscribed =
+    (workspace.plan === Plan.STARTER || workspace.plan === Plan.PRO) &&
+    workspace.stripeId;
+
+  if (workspace.plan !== Plan.FREE && !isSubscribed) return null;
+
+  if (currentUserMode !== "write")
+    return (
+      <p>
+        Only workspace admins can change the subscription plan. Contact your
+        workspace admin to change the plan.
+      </p>
+    );
 
   return (
-    <Stack spacing={6}>
-      <HStack maxW="500px">
-        <StripeClimateLogo />
-        <Text fontSize="xs" color="gray.500">
-          {scopedT('contribution.preLink')}{' '}
-          <TextLink href="https://climate.stripe.com/5VCRAq" isExternal>
-            {scopedT('contribution.link')}
-          </TextLink>
-        </Text>
-      </HStack>
-      {!workspace.stripeId && (
-        <ParentModalProvider>
-          <PreCheckoutModal
-            selectedSubscription={preCheckoutPlan}
-            existingEmail={user?.email ?? undefined}
-            existingCompany={user?.company ?? undefined}
-            onClose={() => setPreCheckoutPlan(undefined)}
-          />
-        </ParentModalProvider>
-      )}
+    <div className="flex flex-col gap-6">
+      <UpgradeConfirmationDialog
+        isOpen={isDefined(pendingUpgradeData)}
+        amountDue={pendingUpgradeData?.amountDue ?? 0}
+        currency={pendingUpgradeData?.currency ?? "eur"}
+        targetPlan={pendingUpgrade}
+        onConfirm={handleConfirmUpgrade}
+        onClose={() => setPendingUpgrade(undefined)}
+      />
       {data && (
-        <Stack align="flex-end" spacing={6}>
-          <HStack>
-            <Text>Monthly</Text>
-            <Switch
-              isChecked={isYearly}
-              onChange={() => setIsYearly(!isYearly)}
-            />
-            <HStack>
-              <Text>Yearly</Text>
-              <Tag colorScheme="blue">16% off</Tag>
-            </HStack>
-          </HStack>
-          <HStack alignItems="stretch" spacing="4" w="full">
-            <StarterPlanPricingCard
-              workspace={workspace}
-              currentSubscription={{ isYearly: data.subscription?.isYearly }}
-              onPayClick={(props) =>
-                handlePayClick({ ...props, plan: Plan.STARTER })
-              }
-              isYearly={isYearly}
-              isLoading={isUpdatingSubscription}
-              currency={data.subscription?.currency}
-            />
+        <div className="flex flex-col items-end gap-6">
+          <div className="flex items-stretch gap-4 w-full">
+            {excludedPlans?.includes("STARTER") ? null : (
+              <StarterPlanPricingCard
+                currentPlan={workspace.plan}
+                onPayClick={() => handlePayClick(Plan.STARTER)}
+                isLoading={
+                  updateSubscriptionStatus === "pending" ||
+                  pendingCheckoutRedirect === "STARTER" ||
+                  (isLoadingPendingUpgrade && pendingUpgrade === Plan.STARTER)
+                }
+                currency={data.subscription?.currency}
+              />
+            )}
 
-            <ProPlanPricingCard
-              workspace={workspace}
-              currentSubscription={{ isYearly: data.subscription?.isYearly }}
-              onPayClick={(props) =>
-                handlePayClick({ ...props, plan: Plan.PRO })
-              }
-              isYearly={isYearly}
-              isLoading={isUpdatingSubscription}
-              currency={data.subscription?.currency}
-            />
-          </HStack>
-        </Stack>
+            {excludedPlans?.includes("PRO") ? null : (
+              <ProPlanPricingCard
+                currentPlan={workspace.plan}
+                onPayClick={() => handlePayClick(Plan.PRO)}
+                isLoading={
+                  updateSubscriptionStatus === "pending" ||
+                  pendingCheckoutRedirect === "PRO" ||
+                  (isLoadingPendingUpgrade && pendingUpgrade === Plan.PRO)
+                }
+                currency={data.subscription?.currency}
+              />
+            )}
+          </div>
+        </div>
       )}
-
-      <Text color="gray.500">
-        {scopedT('customLimit.preLink')}{' '}
-        <TextLink href={'https://typebot.io/enterprise-lead-form'} isExternal>
-          {scopedT('customLimit.link')}
+      <p color="gray.500">
+        {t("billing.customLimit.preLink")}{" "}
+        <TextLink href={"https://typebot.io/enterprise-lead-form"} isExternal>
+          {t("billing.customLimit.link")}
         </TextLink>
-      </Text>
-    </Stack>
-  )
-}
+      </p>
+    </div>
+  );
+};
+
+const isUpgradingPlan = (
+  currentPlan: Plan,
+  targetPlan: "STARTER" | "PRO",
+): boolean => {
+  if (currentPlan === Plan.FREE) {
+    return targetPlan === Plan.STARTER || targetPlan === Plan.PRO;
+  }
+  if (currentPlan === Plan.STARTER) {
+    return targetPlan === Plan.PRO;
+  }
+  return false;
+};

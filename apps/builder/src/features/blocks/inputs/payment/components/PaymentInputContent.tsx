@@ -1,20 +1,20 @@
-import { Text } from '@chakra-ui/react'
-import { PaymentInputBlock } from '@typebot.io/schemas'
+import { useTranslate } from "@tolgee/react";
+import { defaultPaymentInputOptions } from "@typebot.io/blocks-inputs/payment/constants";
+import type { PaymentInputBlock } from "@typebot.io/blocks-inputs/payment/schema";
 
 type Props = {
-  block: PaymentInputBlock
-}
+  block: PaymentInputBlock;
+};
 
 export const PaymentInputContent = ({ block }: Props) => {
-  if (
-    !block.options.amount ||
-    !block.options.credentialsId ||
-    !block.options.currency
-  )
-    return <Text color="gray.500">Configure...</Text>
+  const { t } = useTranslate();
+
+  if (!block.options?.amount || !block.options.credentialsId)
+    return <p color="gray.500">{t("configure")}</p>;
   return (
-    <Text noOfLines={1} pr="6">
-      Collect {block.options.amount} {block.options.currency}
-    </Text>
-  )
-}
+    <p className="pr-6 truncate">
+      {t("blocks.inputs.payment.collect.label")} {block.options.amount}{" "}
+      {block.options.currency ?? defaultPaymentInputOptions.currency}
+    </p>
+  );
+};

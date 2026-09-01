@@ -1,59 +1,58 @@
-import { useScopedI18n } from '@/locales'
-import {
-  GridProps,
-  SimpleGrid,
-  Skeleton,
-  Stat,
-  StatLabel,
-  StatNumber,
-  useColorModeValue,
-} from '@chakra-ui/react'
-import { Stats } from '@typebot.io/schemas'
-import React from 'react'
+import { useTranslate } from "@tolgee/react";
+import type { Stats } from "@typebot.io/results/schemas/answers";
+import type { TimeFilter } from "@typebot.io/results/timeFilter";
+import { Skeleton } from "@typebot.io/ui/components/Skeleton";
+import { cn } from "@typebot.io/ui/lib/cn";
+import { TimeFilterSelect } from "./TimeFilterSelect";
 
-const computeCompletionRate = (
-  totalCompleted: number,
-  totalStarts: number
-): string => {
-  if (totalStarts === 0) return 'Not available'
-  return `${Math.round((totalCompleted / totalStarts) * 100)}%`
-}
+const computeCompletionRate =
+  (notAvailableLabel: string) =>
+  (totalCompleted: number, totalStarts: number): string => {
+    if (totalStarts === 0) return notAvailableLabel;
+    return `${Math.round((totalCompleted / totalStarts) * 100)}%`;
+  };
 
 export const StatsCards = ({
   stats,
-  ...props
-}: { stats?: Stats } & GridProps) => {
-  const scopedT = useScopedI18n('analytics')
-  const bg = useColorModeValue('white', 'gray.900')
+  timeFilter,
+  onTimeFilterChange,
+  className,
+}: {
+  stats?: Stats;
+  timeFilter: TimeFilter;
+  onTimeFilterChange: (timeFilter: TimeFilter) => void;
+  className?: string;
+}) => {
+  const { t } = useTranslate();
 
   return (
-    <SimpleGrid columns={{ base: 1, md: 3 }} spacing="6" {...props}>
-      <Stat bgColor={bg} p="4" rounded="md" boxShadow="md">
-        <StatLabel>{scopedT('viewsLabel')}</StatLabel>
+    <div className={cn("flex gap-6 items-start ", className)}>
+      <div className="bg-gray-1 flex py-2 px-4 rounded-md shadow-md border items-center justify-center gap-2">
+        <p className="font-medium">{t("analytics.viewsLabel")}:</p>
+        {stats ? <p>{stats.totalViews}</p> : <Skeleton className="w-8 h-2" />}
+      </div>
+      <div className="bg-gray-1 py-2 px-4 rounded-md shadow-md border flex items-center justify-center gap-2">
+        <p className="font-medium">{t("analytics.startsLabel")}:</p>
+        {stats ? <p>{stats.totalStarts}</p> : <Skeleton className="w-8 h-2" />}
+      </div>
+      <div className="bg-gray-1 py-2 px-4 rounded-md shadow-md border flex items-center justify-center gap-2">
+        <p className="font-medium">{t("analytics.completionRateLabel")}:</p>
         {stats ? (
-          <StatNumber>{stats.totalViews}</StatNumber>
+          <p>
+            {computeCompletionRate(t("analytics.notAvailableLabel"))(
+              stats.totalCompleted,
+              stats.totalStarts,
+            )}
+          </p>
         ) : (
-          <Skeleton w="50%" h="10px" mt="2" />
+          <Skeleton className="w-1/2 h-2 mt-2" />
         )}
-      </Stat>
-      <Stat bgColor={bg} p="4" rounded="md" boxShadow="md">
-        <StatLabel>{scopedT('startsLabel')}</StatLabel>
-        {stats ? (
-          <StatNumber>{stats.totalStarts}</StatNumber>
-        ) : (
-          <Skeleton w="50%" h="10px" mt="2" />
-        )}
-      </Stat>
-      <Stat bgColor={bg} p="4" rounded="md" boxShadow="md">
-        <StatLabel>{scopedT('completionRateLabel')}</StatLabel>
-        {stats ? (
-          <StatNumber>
-            {computeCompletionRate(stats.totalCompleted, stats.totalStarts)}
-          </StatNumber>
-        ) : (
-          <Skeleton w="50%" h="10px" mt="2" />
-        )}
-      </Stat>
-    </SimpleGrid>
-  )
-}
+      </div>
+      <TimeFilterSelect
+        timeFilter={timeFilter}
+        onTimeFilterChange={onTimeFilterChange}
+        className="shadow-md bg-gray-1"
+      />
+    </div>
+  );
+};

@@ -1,14 +1,10 @@
 {
-  "extends": "@typebot.io/tsconfig/react-library.json",
-  "include": ["src/**/*"],
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    },
-    "declaration": true,
-    "declarationMap": true,
-    "outDir": "dist",
-    "emitDeclarationOnly": true
-  }
+  "extends": "../../../tsconfig.base.json",
+  "files": [],
+  "include": [],
+  "references": [
+    {
+      "path": "./tsconfig.lib.json"
+    }
+  ]
 }

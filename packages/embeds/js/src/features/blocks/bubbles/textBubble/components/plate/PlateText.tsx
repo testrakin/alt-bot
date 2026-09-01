@@ -1,30 +1,19 @@
-import { Show } from 'solid-js'
-
-export type PlateTextProps = {
-  text: string
-  bold?: boolean
-  italic?: boolean
-  underline?: boolean
-}
+import type { TText } from "@typebot.io/rich-text/plate";
 
 const computeClassNames = (
-  bold: boolean | undefined,
-  italic: boolean | undefined,
-  underline: boolean | undefined
+  bold: unknown,
+  italic: unknown,
+  underline: unknown,
 ) => {
-  let className = ''
-  if (bold) className += 'slate-bold'
-  if (italic) className += ' slate-italic'
-  if (underline) className += ' slate-underline'
-  return className
-}
+  let className = "";
+  if (bold) className += "slate-bold";
+  if (italic) className += " slate-italic";
+  if (underline) className += " slate-underline";
+  return className;
+};
 
-export const PlateText = (props: PlateTextProps) => (
-  <Show
-    when={computeClassNames(props.bold, props.italic, props.underline)}
-    keyed
-    fallback={<>{props.text}</>}
-  >
-    {(className) => <span class={className}>{props.text}</span>}
-  </Show>
-)
+export const PlateText = (props: TText) => (
+  <span class={computeClassNames(props.bold, props.italic, props.underline)}>
+    {props.text}
+  </span>
+);

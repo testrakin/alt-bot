@@ -1,18 +1,23 @@
-import { runtimes } from '../data'
-import { ApiPreviewInstructions } from './ApiPreviewInstructions'
-import { WebPreview } from './WebPreview'
+import type { JSX } from "react";
+import type { runtimes } from "../data";
+import { ApiPreviewInstructions } from "./ApiPreviewInstructions";
+import { WebPreview } from "./WebPreview";
+import { WhatsAppPreviewInstructions } from "./WhatsAppPreviewInstructions";
 
 type Props = {
-  runtime: (typeof runtimes)[number]['name']
-}
+  runtime: (typeof runtimes)[number]["name"];
+};
 
-export const PreviewDrawerBody = ({ runtime }: Props) => {
+export const PreviewDrawerBody = ({ runtime }: Props): JSX.Element => {
   switch (runtime) {
-    case 'Web': {
-      return <WebPreview />
+    case "Web": {
+      return <WebPreview />;
     }
-    case 'API': {
-      return <ApiPreviewInstructions pt="4" />
+    case "WhatsApp": {
+      return <WhatsAppPreviewInstructions />;
+    }
+    case "API": {
+      return <ApiPreviewInstructions className="pt-4" />;
     }
   }
-}
+};

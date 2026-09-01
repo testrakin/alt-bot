@@ -1,173 +1,212 @@
-import { DashboardFolder } from '@typebot.io/prisma'
-import {
-  Button,
-  Editable,
-  EditableInput,
-  EditablePreview,
-  MenuItem,
-  useDisclosure,
-  Text,
-  VStack,
-  IconButton,
-  Menu,
-  MenuButton,
-  MenuList,
-  SkeletonText,
-  SkeletonCircle,
-  WrapItem,
-  useColorModeValue,
-} from '@chakra-ui/react'
-import { FolderIcon, MoreVerticalIcon } from '@/components/icons'
-import { ConfirmModal } from '@/components/ConfirmModal'
-import { useTypebotDnd } from '../TypebotDndProvider'
-import { useRouter } from 'next/router'
-import React, { useMemo } from 'react'
-import { deleteFolderQuery } from '../queries/deleteFolderQuery'
-import { useToast } from '@/hooks/useToast'
-import { updateFolderQuery } from '../queries/updateFolderQuery'
-import { useI18n, useScopedI18n } from '@/locales'
+import { ORPCError } from "@orpc/client";
+import { useMutation } from "@tanstack/react-query";
+import { T, useTranslate } from "@tolgee/react";
+import type { Prisma } from "@typebot.io/prisma/types";
+import { Alert } from "@typebot.io/ui/components/Alert";
+import { AlertDialog } from "@typebot.io/ui/components/AlertDialog";
+import { Button, buttonVariants } from "@typebot.io/ui/components/Button";
+import { Editable } from "@typebot.io/ui/components/Editable";
+import { Menu } from "@typebot.io/ui/components/Menu";
+import { Skeleton } from "@typebot.io/ui/components/Skeleton";
+import { useOpenControls } from "@typebot.io/ui/hooks/useOpenControls";
+import { Folder01SolidIcon } from "@typebot.io/ui/icons/Folder01SolidIcon";
+import { MoreVerticalIcon } from "@typebot.io/ui/icons/MoreVerticalIcon";
+import { TriangleAlertIcon } from "@typebot.io/ui/icons/TriangleAlertIcon";
+import { cn } from "@typebot.io/ui/lib/cn";
+import { useRouter } from "next/router";
+import { memo, useMemo, useRef } from "react";
+import { orpc } from "@/lib/queryClient";
+import { useTypebotDnd } from "../TypebotDndProvider";
 
-export const FolderButton = ({
+type Props = {
+  workspaceId: string;
+  isNameDefaultEditable: boolean;
+  folder: Pick<Prisma.DashboardFolder, "id" | "name">;
+  onFolderDeleted: () => void;
+  onFolderRenamed: () => void;
+};
+
+const FolderButton = ({
+  workspaceId,
+  isNameDefaultEditable,
   folder,
   onFolderDeleted,
   onFolderRenamed,
-}: {
-  folder: DashboardFolder
-  onFolderDeleted: () => void
-  onFolderRenamed: (newName: string) => void
-}) => {
-  const t = useI18n()
-  const scopedT = useScopedI18n('folders.folderButton')
-  const router = useRouter()
+}: Props) => {
+  const { t } = useTranslate();
+  const router = useRouter();
   const { draggedTypebot, setMouseOverFolderId, mouseOverFolderId } =
-    useTypebotDnd()
+    useTypebotDnd();
   const isTypebotOver = useMemo(
     () => draggedTypebot && mouseOverFolderId === folder.id,
-    [draggedTypebot, folder.id, mouseOverFolderId]
-  )
-  const { isOpen, onOpen, onClose } = useDisclosure()
-  const { showToast } = useToast()
+    [draggedTypebot, folder.id, mouseOverFolderId],
+  );
+  const deleteDialogControls = useOpenControls();
+  const deleteCancelRef = useRef<HTMLButtonElement | null>(null);
+  const { mutate: deleteFolder, isPending } = useMutation(
+    orpc.folders.deleteFolder.mutationOptions({
+      onSuccess: onFolderDeleted,
+    }),
+  );
 
-  const onDeleteClick = async () => {
-    const { error } = await deleteFolderQuery(folder.id)
-    return error
-      ? showToast({
-          description: error.message,
-        })
-      : onFolderDeleted()
-  }
+  const { mutate: updateFolder } = useMutation(
+    orpc.folders.updateFolder.mutationOptions({
+      onSuccess: onFolderRenamed,
+      retry: (failureCount, error) =>
+        error instanceof ORPCError &&
+        error.code === "NOT_FOUND" &&
+        failureCount < 2,
+    }),
+  );
 
   const onRenameSubmit = async (newName: string) => {
-    if (newName === '' || newName === folder.name) return
-    const { error } = await updateFolderQuery(folder.id, { name: newName })
-    return error
-      ? showToast({ title: t('errorMessage'), description: error.message })
-      : onFolderRenamed(newName)
-  }
+    if (newName === "" || newName === folder.name) return;
+    updateFolder({
+      workspaceId,
+      folderId: folder.id,
+      folder: {
+        name: newName,
+      },
+    });
+  };
 
   const handleClick = () => {
-    router.push(`/typebots/folders/${folder.id}`)
-  }
+    router.push(`/typebots/folders/${folder.id}`);
+  };
 
-  const handleMouseEnter = () => setMouseOverFolderId(folder.id)
-  const handleMouseLeave = () => setMouseOverFolderId(undefined)
+  const handleMouseEnter = () => setMouseOverFolderId(folder.id);
+  const handleMouseLeave = () => setMouseOverFolderId(undefined);
   return (
-    <Button
-      as={WrapItem}
-      style={{ width: '225px', height: '270px' }}
-      paddingX={6}
-      whiteSpace={'normal'}
-      pos="relative"
-      cursor="pointer"
-      variant="outline"
-      colorScheme={isTypebotOver ? 'blue' : 'gray'}
-      borderWidth={isTypebotOver ? '3px' : '1px'}
-      justifyContent="center"
-      onClick={handleClick}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      <Menu>
-        <MenuButton
-          as={IconButton}
-          icon={<MoreVerticalIcon />}
-          aria-label={`Show ${folder.name} menu`}
-          onClick={(e) => e.stopPropagation()}
-          colorScheme="gray"
-          variant="outline"
-          size="sm"
-          pos="absolute"
-          top="5"
-          right="5"
-        />
-        <MenuList>
-          <MenuItem
-            color="red"
-            onClick={(e) => {
-              e.stopPropagation()
-              onOpen()
-            }}
+    <>
+      {/* biome-ignore lint/a11y/useSemanticElements: This card contains nested interactive controls. */}
+      <div
+        className={cn(
+          buttonVariants({
+            variant: "outline-secondary",
+            iconStyle: "none",
+            size: "lg",
+          }),
+          "w-[225px] h-[270px] relative px-6 whitespace-normal transition-all duration-100 justify-center bg-gray-1",
+          isTypebotOver && "ring-2 ring-orange-8",
+        )}
+        role="button"
+        tabIndex={0}
+        onClick={handleClick}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          handleClick();
+        }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        <Menu.Root>
+          <Menu.TriggerButton
+            aria-label={`Show ${folder.name} menu`}
+            onClick={(e) => e.stopPropagation()}
+            variant="outline-secondary"
+            size="icon"
+            className="absolute top-5 right-5 size-8"
           >
-            {t('delete')}
-          </MenuItem>
-        </MenuList>
-      </Menu>
-      <VStack spacing="4">
-        <FolderIcon
-          fontSize={50}
-          color={useColorModeValue('blue.500', 'blue.400')}
-        />
-        <Editable
-          defaultValue={folder.name}
-          fontSize="18"
-          onClick={(e) => e.stopPropagation()}
-          onSubmit={onRenameSubmit}
-        >
-          <EditablePreview
-            _hover={{
-              bg: useColorModeValue('gray.100', 'gray.700'),
-            }}
-            px="2"
-            textAlign="center"
-          />
-          <EditableInput textAlign="center" />
-        </Editable>
-      </VStack>
-
-      <ConfirmModal
-        isOpen={isOpen}
-        onClose={onClose}
-        confirmButtonLabel={'Delete'}
-        message={
-          <Text>
-            {scopedT('deleteConfirmationMessage', {
-              folderName: <strong>{folder.name}</strong>,
-            })}
-          </Text>
-        }
-        title={`Delete ${folder.name}?`}
-        onConfirm={onDeleteClick}
-        confirmButtonColor="red"
-      />
-    </Button>
-  )
-}
+            <MoreVerticalIcon />
+          </Menu.TriggerButton>
+          <Menu.Popup align="end">
+            <Menu.Item
+              className="text-red-10"
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteDialogControls.onOpen();
+              }}
+            >
+              {t("delete")}
+            </Menu.Item>
+          </Menu.Popup>
+        </Menu.Root>
+        <div className="flex flex-col items-center gap-4">
+          <Folder01SolidIcon className="size-10 text-blue-10" />
+          <Editable.Root
+            className="text-lg"
+            defaultValue={folder.name === "" ? "New folder" : folder.name}
+            defaultEdit={isNameDefaultEditable}
+            onValueCommit={onRenameSubmit}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          >
+            <Editable.Input className="text-center" />
+            <Editable.Preview className="cursor-text" maxLines={3} />
+          </Editable.Root>
+        </div>
+      </div>
+      <AlertDialog.Root
+        isOpen={deleteDialogControls.isOpen}
+        onClose={deleteDialogControls.onClose}
+      >
+        <AlertDialog.Content initialFocus={deleteCancelRef}>
+          <AlertDialog.Header>
+            <AlertDialog.Title>
+              {`${t("delete")} ${folder.name}?`}
+            </AlertDialog.Title>
+            <AlertDialog.Description className="text-foreground">
+              <div className="flex flex-col gap-4">
+                <p>
+                  <T
+                    keyName="folders.folderButton.deleteConfirmationMessage"
+                    params={{
+                      strong: <strong>{folder.name}</strong>,
+                    }}
+                  />
+                </p>
+                <Alert.Root variant="warning">
+                  <TriangleAlertIcon />
+                  <Alert.Description>
+                    {t("folders.folderButton.deleteConfirmationMessageWarning")}
+                  </Alert.Description>
+                </Alert.Root>
+              </div>
+            </AlertDialog.Description>
+          </AlertDialog.Header>
+          <AlertDialog.Footer>
+            <AlertDialog.Cancel ref={deleteCancelRef}>
+              {t("cancel")}
+            </AlertDialog.Cancel>
+            <AlertDialog.Action
+              variant="destructive"
+              disabled={isPending}
+              onClick={() => {
+                deleteFolder({
+                  workspaceId,
+                  folderId: folder.id,
+                });
+              }}
+            >
+              {t("delete")}
+            </AlertDialog.Action>
+          </AlertDialog.Footer>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
+    </>
+  );
+};
 
 export const ButtonSkeleton = () => (
   <Button
-    as={VStack}
-    mr={{ sm: 6 }}
-    mb={6}
-    style={{ width: '225px', height: '270px' }}
-    paddingX={6}
-    whiteSpace={'normal'}
-    pos="relative"
-    cursor="pointer"
-    variant="outline"
+    className="w-[225px] h-[270px] relative px-6 whitespace-normal"
+    variant="outline-secondary"
   >
-    <VStack spacing="6" w="full">
-      <SkeletonCircle boxSize="45px" />
-      <SkeletonText noOfLines={2} w="full" />
-    </VStack>
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center gap-6 w-full">
+        <Skeleton className="size-10 rounded-full" />
+        <Skeleton className="w-full h-2" />
+        <Skeleton className="w-full h-2" />
+      </div>
+    </div>
   </Button>
-)
+);
+
+export default memo(
+  FolderButton,
+  (prev, next) =>
+    prev.folder.id === next.folder.id &&
+    prev.isNameDefaultEditable === next.isNameDefaultEditable &&
+    prev.folder.name === next.folder.name,
+);

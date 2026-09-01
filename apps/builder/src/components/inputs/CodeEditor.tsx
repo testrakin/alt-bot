@@ -1,120 +1,134 @@
+import { isDefined } from "@typebot.io/lib/utils";
+import { Button } from "@typebot.io/ui/components/Button";
+import { Popover } from "@typebot.io/ui/components/Popover";
+import { useOpenControls } from "@typebot.io/ui/hooks/useOpenControls";
+import { ThirdBracketIcon } from "@typebot.io/ui/icons/ThirdBracketIcon";
+import { cn } from "@typebot.io/ui/lib/cn";
+import type { Variable } from "@typebot.io/variables/schemas";
 import {
-  BoxProps,
-  Fade,
-  HStack,
-  useColorModeValue,
-  useDisclosure,
-} from '@chakra-ui/react'
-import { useEffect, useRef, useState } from 'react'
-import { useDebouncedCallback } from 'use-debounce'
-import { VariablesButton } from '@/features/variables/components/VariablesButton'
-import { Variable } from '@typebot.io/schemas'
-import { env } from '@typebot.io/lib'
-import CodeMirror, { ReactCodeMirrorRef } from '@uiw/react-codemirror'
-import { tokyoNight } from '@uiw/codemirror-theme-tokyo-night'
-import { githubLight } from '@uiw/codemirror-theme-github'
-import { LanguageName, loadLanguage } from '@uiw/codemirror-extensions-langs'
-import { isDefined } from '@udecode/plate-common'
-import { CopyButton } from '../CopyButton'
+  type LanguageName,
+  loadLanguage,
+} from "@uiw/codemirror-extensions-langs";
+import { githubLight } from "@uiw/codemirror-theme-github";
+import { tokyoNight } from "@uiw/codemirror-theme-tokyo-night";
+import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { useDebouncedCallback } from "use-debounce";
+import { useThemeValue } from "@/hooks/useThemeValue";
+import { CopyButton } from "../CopyButton";
+import { VariablesCombobox } from "./VariablesCombobox";
+
+const VARIABLE_POPOVER_OFFSET_Y = 5;
+const VARIABLE_POPOVER_OFFSET_X = 50;
 
 type Props = {
-  value?: string
-  defaultValue?: string
-  lang: LanguageName
-  isReadOnly?: boolean
-  debounceTimeout?: number
-  withVariableButton?: boolean
-  height?: string
-  maxHeight?: string
-  onChange?: (value: string) => void
-}
+  value?: string;
+  defaultValue?: string;
+  lang: LanguageName;
+  minHeight?: `${number}px`;
+  maxHeight?: `${number}px`;
+  isReadOnly?: boolean;
+  debounceTimeout?: number;
+  onChange?: (value: string) => void;
+  withLineNumbers?: boolean;
+  placeholder?: string;
+  withVariableButton?: boolean;
+  className?: string;
+};
 export const CodeEditor = ({
   defaultValue,
   lang,
+  minHeight = "150px",
+  maxHeight = "250px",
   onChange,
-  height = '250px',
-  maxHeight = '70vh',
-  withVariableButton = true,
+  withLineNumbers = false,
   isReadOnly = false,
   debounceTimeout = 1000,
+  placeholder,
+  withVariableButton = true,
+  className,
   ...props
-}: Props & Omit<BoxProps, 'onChange'>) => {
-  const theme = useColorModeValue(githubLight, tokyoNight)
-  const codeEditor = useRef<ReactCodeMirrorRef | null>(null)
-  const [carretPosition, setCarretPosition] = useState<number>(0)
-  const isVariableButtonDisplayed = withVariableButton && !isReadOnly
-  const [value, _setValue] = useState(defaultValue ?? '')
-  const { onOpen, onClose, isOpen } = useDisclosure()
+}: Props) => {
+  const theme = useThemeValue(githubLight, tokyoNight);
+  const variablesPopoverControls = useOpenControls();
+  const codeEditor = useRef<ReactCodeMirrorRef | null>(null);
 
-  const setValue = useDebouncedCallback(
-    (value) => {
-      _setValue(value)
-      onChange && onChange(value)
-    },
-    env('E2E_TEST') === 'true' ? 0 : debounceTimeout
-  )
+  const [carretPosition, setCarretPosition] = useState<number>(0);
+  const [variablePopoverAnchorCoords, setVariablePopoverAnchorCoords] =
+    useState<{ top: number; left: number } | null>({ top: 0, left: 0 });
+  const [value, _setValue] = useState(defaultValue ?? "");
 
-  const handleVariableSelected = (variable?: Pick<Variable, 'id' | 'name'>) => {
-    codeEditor.current?.view?.focus()
-    const insert = `{{${variable?.name}}}`
+  const setValue = useDebouncedCallback((value) => {
+    _setValue(value);
+    onChange?.(value);
+  }, debounceTimeout);
+
+  const handleVariableSelected = (variable?: Pick<Variable, "id" | "name">) => {
+    codeEditor.current?.view?.focus();
+    const insert = `{{${variable?.name}}}`;
     codeEditor.current?.view?.dispatch({
       changes: {
         from: carretPosition,
         insert,
       },
       selection: { anchor: carretPosition + insert.length },
-    })
-  }
+    });
+    variablesPopoverControls.onClose();
+  };
 
   const handleChange = (newValue: string) => {
-    setValue(newValue)
-  }
+    setValue(newValue);
+  };
 
   const rememberCarretPosition = () => {
     setCarretPosition(
-      codeEditor.current?.view?.state?.selection.asSingle().main.head ?? 0
-    )
-  }
+      codeEditor.current?.view?.state?.selection.asSingle().main.head ?? 0,
+    );
+  };
+
+  const openVariablePopover = () => {
+    const view = codeEditor.current?.view;
+    if (!view) return;
+
+    if (carretPosition == null) return;
+
+    const caretBox = view.coordsAtPos(carretPosition);
+    if (!caretBox) return;
+
+    const editorRect = view.dom.getBoundingClientRect();
+
+    setVariablePopoverAnchorCoords({
+      top: caretBox.bottom - editorRect.top + VARIABLE_POPOVER_OFFSET_Y,
+      left: caretBox.left - editorRect.left + VARIABLE_POPOVER_OFFSET_X,
+    });
+
+    variablesPopoverControls.onOpen();
+  };
 
   useEffect(
     () => () => {
-      setValue.flush()
+      setValue.flush();
     },
-    [setValue]
-  )
+    [setValue],
+  );
+
+  const isVariableButtonDisplayed = withVariableButton && !isReadOnly;
 
   return (
-    <HStack
-      align="flex-end"
-      spacing={0}
-      borderWidth={'1px'}
-      rounded="md"
-      bg={useColorModeValue('white', '#1A1B26')}
-      width="full"
-      h="full"
-      pos="relative"
-      onMouseEnter={onOpen}
-      onMouseLeave={onClose}
-      maxWidth={props.maxWidth}
-      sx={{
-        '& .cm-editor': {
-          maxH: maxHeight,
-          outline: '0px solid transparent !important',
-          rounded: 'md',
-        },
-        '& .cm-scroller': {
-          rounded: 'md',
-          overflow: 'auto',
-        },
-        '& .cm-gutter,.cm-content': {
-          minH: isReadOnly ? '0' : height,
-        },
-        '& .ͼ1 .cm-scroller': {
-          fontSize: '14px',
-          fontFamily:
-            'JetBrainsMono, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace',
-        },
-      }}
+    <div
+      style={
+        {
+          "--editor-min-height": minHeight,
+          "--editor-max-height": maxHeight,
+        } as CSSProperties
+      }
+      className={cn(
+        "group relative isolate border rounded-md [&_.cm-editor]:font-mono [&_.cm-editor]:text-sm min-h-(--editor-min-height)",
+        !withLineNumbers && "[&_.cm-gutters]:hidden",
+        "[&_.cm-editor]:rounded-md [&_.cm-editor]:outline-none! has-[.cm-focused]:ring-2 transition-[box-shadow,border-color] has-[.cm-focused]:border-transparent ring-orange-7 [&_.cm-scroller]:rounded-md [&_.cm-scroller]:overflow-auto",
+        isReadOnly ? undefined : "[&_.cm-editor]:max-h-(--editor-max-height)",
+        className,
+      )}
     >
       <CodeMirror
         data-testid="code-editor"
@@ -125,26 +139,56 @@ export const CodeEditor = ({
         theme={theme}
         extensions={[loadLanguage(lang)].filter(isDefined)}
         editable={!isReadOnly}
-        style={{
-          width: isVariableButtonDisplayed ? 'calc(100% - 32px)' : '100%',
-        }}
         spellCheck={false}
+        basicSetup={{
+          highlightActiveLine: false,
+        }}
+        placeholder={placeholder}
       />
       {isVariableButtonDisplayed && (
-        <VariablesButton onSelectVariable={handleVariableSelected} size="sm" />
+        <>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="absolute right-1 bottom-1 size-7"
+            onClick={openVariablePopover}
+          >
+            <ThirdBracketIcon className="opacity-75" />
+          </Button>
+          <Popover.Root
+            isOpen={variablesPopoverControls.isOpen}
+            onClose={variablesPopoverControls.onClose}
+          >
+            <Popover.Trigger
+              className="absolute"
+              style={{
+                top: `${variablePopoverAnchorCoords?.top}px`,
+                left: `${variablePopoverAnchorCoords?.left}px`,
+              }}
+            />
+            <Popover.Popup
+              className="p-0 data-open:duration-0"
+              offset={0}
+              // Prevent the editor from closing when clicking on the variable search input
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <VariablesCombobox
+                initialVariableId={undefined}
+                onSelectVariable={handleVariableSelected}
+                defaultOpen
+                className="w-72"
+              />
+            </Popover.Popup>
+          </Popover.Root>
+        </>
       )}
       {isReadOnly && (
-        <Fade in={isOpen}>
-          <CopyButton
-            textToCopy={props.value ?? value}
-            pos="absolute"
-            right={0.5}
-            top={0.5}
-            size="xs"
-            colorScheme="blue"
-          />
-        </Fade>
+        <CopyButton
+          data-slot="copy-button"
+          textToCopy={props.value ?? value}
+          className="absolute right-0.5 top-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+        />
       )}
-    </HStack>
-  )
-}
+    </div>
+  );
+};

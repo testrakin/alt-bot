@@ -1,69 +1,128 @@
-import { useToast } from '@/hooks/useToast'
-import { ResultHeaderCell, ResultWithAnswers } from '@typebot.io/schemas'
-import { createContext, ReactNode, useContext, useMemo } from 'react'
-import { parseResultHeader } from '@typebot.io/lib/results'
-import { useTypebot } from '../editor/providers/TypebotProvider'
-import { useResultsQuery } from './hooks/useResultsQuery'
-import { TableData } from './types'
-import { convertResultsToTableData } from './helpers/convertResultsToTableData'
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { LogicBlockType } from "@typebot.io/blocks-logic/constants";
+import { isDefined } from "@typebot.io/lib/utils";
+import { convertResultsToTableData } from "@typebot.io/results/convertResultsToTableData";
+import { parseBlockIdVariableIdMap } from "@typebot.io/results/parseBlockIdVariableIdMap";
+import { parseResultHeader } from "@typebot.io/results/parseResultHeader";
+import type {
+  ResultHeaderCell,
+  ResultWithAnswers,
+  TableData,
+} from "@typebot.io/results/schemas/results";
+import type { TimeFilter } from "@typebot.io/results/timeFilter";
+import type { Typebot } from "@typebot.io/typebot/schemas/typebot";
+import type { ReactNode } from "react";
+import { createContext, useContext, useMemo } from "react";
+import { orpc } from "@/lib/queryClient";
+import { useTypebot } from "../editor/providers/TypebotProvider";
+import { parseCellContent } from "./helpers/parseCellContent";
+
+const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 const resultsContext = createContext<{
-  resultsList: { results: ResultWithAnswers[] }[] | undefined
-  flatResults: ResultWithAnswers[]
-  hasNextPage: boolean
-  resultHeader: ResultHeaderCell[]
-  totalResults: number
-  tableData: TableData[]
-  onDeleteResults: (totalResultsDeleted: number) => void
-  fetchNextPage: () => void
-  refetchResults: () => void
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  //@ts-ignore
-}>({})
+  resultsList: { results: ResultWithAnswers[] }[] | undefined;
+  flatResults: ResultWithAnswers[];
+  hasNextPage: boolean;
+  resultHeader: ResultHeaderCell[];
+  totalResults: number;
+  tableData: TableData[];
+  onDeleteResults: (totalResultsDeleted: number) => void;
+  fetchNextPage: () => void;
+  refetchResults: () => void;
+  //@ts-expect-error
+}>({});
 
 export const ResultsProvider = ({
+  timeFilter,
   children,
   typebotId,
   totalResults,
   onDeleteResults,
 }: {
-  children: ReactNode
-  typebotId: string
-  totalResults: number
-  onDeleteResults: (totalResultsDeleted: number) => void
+  timeFilter: TimeFilter;
+  children: ReactNode;
+  typebotId: string;
+  totalResults: number;
+  onDeleteResults: (totalResultsDeleted: number) => void;
 }) => {
-  const { publishedTypebot, linkedTypebots } = useTypebot()
-  const { showToast } = useToast()
-  const { data, fetchNextPage, hasNextPage, refetch } = useResultsQuery({
-    typebotId,
-    onError: (error) => {
-      showToast({ description: error })
-    },
-  })
+  const { publishedTypebot } = useTypebot();
+  const {
+    data: resultsData,
+    fetchNextPage,
+    hasNextPage,
+    refetch,
+  } = useInfiniteQuery(
+    orpc.results.getResults.infiniteOptions({
+      input: (cursor: number) => ({
+        cursor,
+        timeZone,
+        timeFilter,
+        typebotId,
+      }),
+      initialPageParam: 0,
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+    }),
+  );
+
+  const data = resultsData?.pages;
+
+  const linkedTypebotIds =
+    publishedTypebot?.groups
+      .flatMap((group) => group.blocks)
+      .reduce<string[]>((typebotIds, block) => {
+        if (block.type !== LogicBlockType.TYPEBOT_LINK) return typebotIds;
+        const typebotId = block.options?.typebotId;
+        if (
+          isDefined(typebotId) &&
+          !typebotIds.includes(typebotId) &&
+          block.options?.mergeResults !== false
+        )
+          typebotIds.push(typebotId);
+        return typebotIds;
+      }, []) ?? [];
+
+  const { data: linkedTypebotsData } = useQuery(
+    orpc.getLinkedTypebots.queryOptions({
+      input: {
+        typebotId,
+      },
+      enabled: linkedTypebotIds.length > 0,
+    }),
+  );
 
   const flatResults = useMemo(
     () => data?.flatMap((d) => d.results) ?? [],
-    [data]
-  )
+    [data],
+  );
 
   const resultHeader = useMemo(
     () =>
       publishedTypebot
-        ? parseResultHeader(publishedTypebot, linkedTypebots)
+        ? parseResultHeader({
+            typebot: publishedTypebot,
+            linkedTypebots: linkedTypebotsData?.typebots as Pick<
+              Typebot,
+              "groups" | "variables"
+            >[],
+          })
         : [],
-    [linkedTypebots, publishedTypebot]
-  )
+    [linkedTypebotsData?.typebots, publishedTypebot],
+  );
 
   const tableData = useMemo(
     () =>
       publishedTypebot
-        ? convertResultsToTableData(
-            data?.flatMap((d) => d.results) ?? [],
-            resultHeader
-          )
+        ? convertResultsToTableData({
+            results: data?.flatMap((d) => d.results) ?? [],
+            headerCells: resultHeader,
+            cellParser: parseCellContent,
+            blockIdVariableIdMap: parseBlockIdVariableIdMap(
+              publishedTypebot.groups,
+            ),
+          })
         : [],
-    [publishedTypebot, data, resultHeader]
-  )
+    [publishedTypebot, data, resultHeader],
+  );
 
   return (
     <resultsContext.Provider
@@ -81,7 +140,7 @@ export const ResultsProvider = ({
     >
       {children}
     </resultsContext.Provider>
-  )
-}
+  );
+};
 
-export const useResults = () => useContext(resultsContext)
+export const useResults = () => useContext(resultsContext);

@@ -1,53 +1,67 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { BubbleProps } from '@typebot.io/js'
+import { type BubbleProps, resolveButtonSize } from "@typebot.io/js";
+import type React from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { ensureWebComponentsLoaded } from "./ensureWebComponentsLoaded";
 
-type Props = BubbleProps
+type Props = BubbleProps & {
+  inlineStyle?: {
+    [key: string]: string;
+  };
+};
 
-declare global {
+declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
-      'typebot-bubble': React.DetailedHTMLProps<
+      "typebot-bubble": React.DetailedHTMLProps<
         React.HTMLAttributes<HTMLElement>,
         HTMLElement
-      >
+      >;
     }
   }
 }
 
-type BubbleElement = HTMLElement & Props
+type BubbleElement = HTMLElement & Props;
 
 export const Bubble = (props: Props) => {
-  const ref = useRef<BubbleElement | null>(null)
-  const [isInitialized, setIsInitialized] = useState(false)
+  const ref = useRef<BubbleElement | null>(null);
 
   useEffect(() => {
-    ;(async () => {
-      await import('@typebot.io/js/dist/web')
-      setIsInitialized(true)
-    })()
-    return () => {
-      ref.current?.remove()
+    void ensureWebComponentsLoaded();
+  }, []);
+
+  useEffect(() => {
+    if (props.theme?.position === "static" && !ref.current) return;
+    if (!ref.current) {
+      ref.current = document.createElement("typebot-bubble") as BubbleElement;
+      document.body.prepend(ref.current);
     }
-  }, [])
-
-  const attachBubbleToDom = useCallback((props: Props) => {
-    const bubbleElement = document.createElement(
-      'typebot-bubble'
-    ) as BubbleElement
-    ref.current = bubbleElement
-    injectPropsToElement(ref.current, props)
-    document.body.append(ref.current)
-  }, [])
+    const { typebot, ...rest } = props;
+    // We assign typebot last to ensure initializeBubble is triggered with all the initial values
+    Object.assign(ref.current, rest, { typebot });
+  }, [props]);
 
   useEffect(() => {
-    if (!isInitialized) return
-    if (!ref.current) attachBubbleToDom(props)
-    injectPropsToElement(ref.current as BubbleElement, props)
-  }, [attachBubbleToDom, isInitialized, props])
+    return () => {
+      if (props.theme?.position === "static") return;
+      ref.current?.remove();
+      ref.current = null;
+    };
+  }, [props.theme?.position]);
 
-  const injectPropsToElement = (element: BubbleElement, props: Props) => {
-    Object.assign(element, props)
-  }
+  const buttonSize = useMemo(() => {
+    return resolveButtonSize(props.theme?.button?.size);
+  }, [props.theme?.button?.size]);
 
-  return null
-}
+  if (props.theme?.position === "static")
+    return (
+      <typebot-bubble
+        ref={ref}
+        style={{
+          display: "inline-flex",
+          width: buttonSize,
+          height: buttonSize,
+        }}
+      />
+    );
+  return null;
+};

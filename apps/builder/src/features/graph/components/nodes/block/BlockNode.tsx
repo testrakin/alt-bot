@@ -1,44 +1,49 @@
-import {
-  Flex,
-  HStack,
-  Popover,
-  PopoverTrigger,
-  useColorModeValue,
-  useDisclosure,
-} from '@chakra-ui/react'
-import React, { useEffect, useRef, useState } from 'react'
-import {
+import type {
   BubbleBlock,
   BubbleBlockContent,
-  DraggableBlock,
-  Block,
-  BlockWithOptions,
-  TextBubbleBlock,
-  LogicBlockType,
-} from '@typebot.io/schemas'
-import { isBubbleBlock, isDefined, isTextBubbleBlock } from '@typebot.io/lib'
-import { BlockNodeContent } from './BlockNodeContent'
-import { BlockSettings, SettingsPopoverContent } from './SettingsPopoverContent'
-import { BlockNodeContextMenu } from './BlockNodeContextMenu'
-import { SourceEndpoint } from '../../endpoints/SourceEndpoint'
-import { useRouter } from 'next/router'
-import { MediaBubblePopoverContent } from './MediaBubblePopoverContent'
-import { ContextMenu } from '@/components/ContextMenu'
-import { TextBubbleEditor } from '@/features/blocks/bubbles/textBubble/components/TextBubbleEditor'
-import { BlockIcon } from '@/features/editor/components/BlockIcon'
-import { useTypebot } from '@/features/editor/providers/TypebotProvider'
+} from "@typebot.io/blocks-bubbles/schema";
+import type { TextBubbleBlock } from "@typebot.io/blocks-bubbles/text/schema";
 import {
-  NodePosition,
+  isBubbleBlock,
+  isInputBlock,
+  isTextBubbleBlock,
+} from "@typebot.io/blocks-core/helpers";
+import type {
+  Block,
+  BlockV6,
+  BlockWithOptions,
+} from "@typebot.io/blocks-core/schemas/schema";
+import { LogicBlockType } from "@typebot.io/blocks-logic/constants";
+import type { TEventWithOptions } from "@typebot.io/events/schemas";
+import type { TurnableIntoParam } from "@typebot.io/forge/types";
+import { isDefined } from "@typebot.io/lib/utils";
+import type { TElement } from "@typebot.io/rich-text/plate";
+import { ContextMenu } from "@typebot.io/ui/components/ContextMenu";
+import { Popover } from "@typebot.io/ui/components/Popover";
+import { cx } from "@typebot.io/ui/lib/cva";
+import { useRouter } from "next/router";
+import { useEffect, useRef, useState } from "react";
+import { ZodError, type ZodObject } from "zod";
+import { fromZodError } from "zod-validation-error";
+import { TextBubbleEditor } from "@/features/blocks/bubbles/textBubble/components/TextBubbleEditor";
+import { BlockIcon } from "@/features/editor/components/BlockIcon";
+import { useTypebot } from "@/features/editor/providers/TypebotProvider";
+import { useSelectionStore } from "@/features/graph/hooks/useSelectionStore";
+import {
+  type NodePosition,
   useBlockDnd,
   useDragDistance,
-} from '@/features/graph/providers/GraphDndProvider'
-import { useGraph } from '@/features/graph/providers/GraphProvider'
-import { ParentModalProvider } from '@/features/graph/providers/ParentModalProvider'
-import { hasDefaultConnector } from '@/features/typebot/helpers/hasDefaultConnector'
-import { setMultipleRefs } from '@/helpers/setMultipleRefs'
-import { TargetEndpoint } from '../../endpoints/TargetEndpoint'
-import { SettingsModal } from './SettingsModal'
-import { TElement } from '@udecode/plate-common'
+} from "@/features/graph/providers/GraphDndProvider";
+import { useGraph } from "@/features/graph/providers/GraphProvider";
+import { hasDefaultConnector } from "@/features/typebot/helpers/hasDefaultConnector";
+import { setMultipleRefs } from "@/helpers/setMultipleRefs";
+import { toast } from "@/lib/toast";
+import { BlockSourceEndpoint } from "../../endpoints/BlockSourceEndpoint";
+import { TargetEndpoint } from "../../endpoints/TargetEndpoint";
+import { BlockNodeContent } from "./BlockNodeContent";
+import { BlockNodeContextMenuPopup } from "./BlockNodeContextMenuPopup";
+import { MediaBubblePopoverContent } from "./MediaBubblePopoverContent";
+import { SettingsPopoverContent } from "./SettingsPopoverContent";
 
 export const BlockNode = ({
   block,
@@ -46,249 +51,279 @@ export const BlockNode = ({
   indices,
   onMouseDown,
 }: {
-  block: Block
-  isConnectable: boolean
-  indices: { blockIndex: number; groupIndex: number }
-  onMouseDown?: (blockNodePosition: NodePosition, block: DraggableBlock) => void
+  block: BlockV6;
+  isConnectable: boolean;
+  indices: { blockIndex: number; groupIndex: number };
+  onMouseDown?: (blockNodePosition: NodePosition, block: BlockV6) => void;
 }) => {
-  const bg = useColorModeValue('gray.50', 'gray.850')
-  const previewingBorderColor = useColorModeValue('blue.400', 'blue.300')
-  const borderColor = useColorModeValue('gray.200', 'gray.800')
-  const { query } = useRouter()
+  const { pathname, query } = useRouter();
   const {
     setConnectingIds,
     connectingIds,
-    openedBlockId,
-    setOpenedBlockId,
-    setFocusedGroupId,
+    openedNodeId,
+    setOpenedNodeId,
     previewingEdge,
     isReadOnly,
+    isAnalytics,
     previewingBlock,
-  } = useGraph()
-  const { mouseOverBlock, setMouseOverBlock } = useBlockDnd()
-  const { typebot, updateBlock } = useTypebot()
-  const [isConnecting, setIsConnecting] = useState(false)
-  const [isPopoverOpened, setIsPopoverOpened] = useState(
-    openedBlockId === block.id
-  )
-  const [isEditing, setIsEditing] = useState<boolean>(
-    isTextBubbleBlock(block) && block.content.richText.length === 0
-  )
-  const blockRef = useRef<HTMLDivElement | null>(null)
+  } = useGraph();
+  const { mouseOverBlock, setMouseOverBlock } = useBlockDnd();
+  const { typebot, updateBlock } = useTypebot();
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isContextMenuOpened, setIsContextMenuOpened] = useState(false);
+  const blockRef = useRef<HTMLDivElement | null>(null);
+  const [isSettingsPopoverExpanded, setIsSettingsPopoverExpanded] =
+    useState(false);
 
   const isPreviewing =
     isConnecting ||
     previewingEdge?.to.blockId === block.id ||
-    previewingBlock?.id === block.id
+    previewingBlock?.id === block.id;
+
+  const groupId = typebot?.groups.at(indices.groupIndex)?.id;
+
+  const isDraggingGraph = useSelectionStore((state) => state.isDraggingGraph);
 
   const onDrag = (position: NodePosition) => {
-    if (block.type === 'start' || !onMouseDown) return
-    onMouseDown(position, block)
-  }
+    if (!onMouseDown) return;
+    onMouseDown(position, block);
+  };
 
   useDragDistance({
     ref: blockRef,
     onDrag,
-    isDisabled: !onMouseDown || block.type === 'start',
-  })
-
-  const {
-    isOpen: isModalOpen,
-    onOpen: onModalOpen,
-    onClose: onModalClose,
-  } = useDisclosure()
+    isDisabled: !onMouseDown,
+    deps: [openedNodeId],
+  });
 
   useEffect(() => {
-    if (query.blockId?.toString() === block.id) setOpenedBlockId(block.id)
-  }, [block.id, query, setOpenedBlockId])
+    if (query.blockId?.toString() === block.id) setOpenedNodeId(block.id);
+  }, [block.id, query, setOpenedNodeId]);
 
   useEffect(() => {
     setIsConnecting(
-      connectingIds?.target?.groupId === block.groupId &&
-        connectingIds?.target?.blockId === block.id
-    )
-  }, [connectingIds, block.groupId, block.id])
-
-  const handleModalClose = () => {
-    updateBlock(indices, { ...block })
-    onModalClose()
-  }
+      connectingIds?.target?.groupId === groupId &&
+        connectingIds?.target?.blockId === block.id,
+    );
+  }, [connectingIds, block.id, groupId]);
 
   const handleMouseEnter = () => {
-    if (isReadOnly) return
+    if (isReadOnly) return;
     if (mouseOverBlock?.id !== block.id && blockRef.current)
-      setMouseOverBlock({ id: block.id, element: blockRef.current })
-    if (connectingIds)
+      setMouseOverBlock({ id: block.id, ref: blockRef });
+    if (connectingIds && groupId)
       setConnectingIds({
         ...connectingIds,
-        target: { groupId: block.groupId, blockId: block.id },
-      })
-  }
+        target: { groupId, blockId: block.id },
+      });
+  };
 
   const handleMouseLeave = () => {
-    if (mouseOverBlock) setMouseOverBlock(undefined)
+    if (mouseOverBlock) setMouseOverBlock(undefined);
     if (connectingIds?.target)
       setConnectingIds({
         ...connectingIds,
         target: { ...connectingIds.target, blockId: undefined },
-      })
-  }
+      });
+  };
 
-  const handleCloseEditor = (content: TElement[]) => {
-    const updatedBlock = { ...block, content: { richText: content } }
-    updateBlock(indices, updatedBlock)
-    setIsEditing(false)
-  }
+  const handleCloseEditor = () => {
+    setOpenedNodeId(undefined);
+  };
 
-  const handleClick = (e: React.MouseEvent) => {
-    setFocusedGroupId(block.groupId)
-    e.stopPropagation()
-    if (isTextBubbleBlock(block)) setIsEditing(true)
-    setOpenedBlockId(block.id)
-  }
+  const handleTextEditorChange = (content: TElement[]) => {
+    const updatedBlock = { ...block, content: { richText: content } };
+    updateBlock(indices, updatedBlock);
+  };
 
-  const handleExpandClick = () => {
-    setOpenedBlockId(undefined)
-    onModalOpen()
-  }
-
-  const handleBlockUpdate = (updates: Partial<Block>) =>
-    updateBlock(indices, { ...block, ...updates })
+  const handleBlockUpdate = (
+    updates: Partial<BlockWithOptions | TEventWithOptions>,
+  ) => updateBlock(indices, { ...block, ...updates });
 
   const handleContentChange = (content: BubbleBlockContent) =>
-    updateBlock(indices, { ...block, content } as Block)
+    updateBlock(indices, { ...block, content } as Block);
 
   useEffect(() => {
-    setIsPopoverOpened(openedBlockId === block.id)
-  }, [block.id, openedBlockId])
-
-  useEffect(() => {
-    if (!blockRef.current) return
-    const blockElement = blockRef.current
-    blockElement.addEventListener('pointerdown', (e) => e.stopPropagation())
+    if (!blockRef.current) return;
+    const blockElement = blockRef.current;
+    blockElement.addEventListener("pointerdown", (e) => e.stopPropagation());
 
     return () => {
-      blockElement.removeEventListener('pointerdown', (e) =>
-        e.stopPropagation()
-      )
+      blockElement.removeEventListener("pointerdown", (e) =>
+        e.stopPropagation(),
+      );
+    };
+  }, []);
+
+  const convertBlock = (
+    turnIntoParams: TurnableIntoParam,
+    targetBlockSchema: ZodObject<any>,
+  ) => {
+    if (!("options" in block) || !block.options) return;
+
+    const convertedBlockOptions = turnIntoParams.transform
+      ? turnIntoParams.transform(block.options)
+      : block.options;
+    try {
+      updateBlock(
+        indices,
+        targetBlockSchema.parse({
+          ...block,
+          type: turnIntoParams.blockId,
+          options: {
+            ...convertedBlockOptions,
+            credentialsId: undefined,
+          },
+        } as Block),
+      );
+      setOpenedNodeId(block.id);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        console.error(validationError);
+        toast({
+          title: "Could not convert block",
+          description: validationError.toString(),
+        });
+      } else {
+        toast({
+          title: "An error occured while converting the block",
+          description: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
     }
-  }, [])
+  };
 
   const hasIcomingEdge = typebot?.edges.some((edge) => {
-    return edge.to.blockId === block.id
-  })
+    return edge.to.blockId === block.id;
+  });
 
-  return isEditing && isTextBubbleBlock(block) ? (
-    <TextBubbleEditor
-      id={block.id}
-      initialValue={block.content.richText}
-      onClose={handleCloseEditor}
-    />
+  return openedNodeId === block.id && isTextBubbleBlock(block) ? (
+    <ContextMenu.Root onOpenChange={setIsContextMenuOpened}>
+      <ContextMenu.Trigger>
+        <TextBubbleEditor
+          id={block.id}
+          initialValue={block.content?.richText ?? []}
+          onChange={handleTextEditorChange}
+          onClose={handleCloseEditor}
+        />
+      </ContextMenu.Trigger>
+      <BlockNodeContextMenuPopup
+        indices={indices}
+        block={block}
+        onTurnIntoClick={convertBlock}
+      />
+    </ContextMenu.Root>
   ) : (
-    <ContextMenu<HTMLDivElement>
-      renderMenu={() => <BlockNodeContextMenu indices={indices} />}
+    <Popover.Root
+      isOpen={openedNodeId === block.id}
+      onOpen={() => setOpenedNodeId(block.id)}
+      onClose={() => setOpenedNodeId(undefined)}
+      onCloseComplete={() => {
+        setIsSettingsPopoverExpanded(false);
+      }}
     >
-      {(ref, isContextMenuOpened) => (
-        <Popover
-          placement="left"
-          isLazy
-          isOpen={isPopoverOpened}
-          closeOnBlur={false}
-        >
-          <PopoverTrigger>
-            <Flex
-              pos="relative"
-              ref={setMultipleRefs([ref, blockRef])}
-              onMouseEnter={handleMouseEnter}
-              onMouseLeave={handleMouseLeave}
-              onClick={handleClick}
-              data-testid={`block`}
-              w="full"
-              className="prevent-group-drag"
-            >
-              <HStack
-                flex="1"
-                userSelect="none"
-                p="3"
-                borderWidth={
-                  isContextMenuOpened || isPreviewing ? '2px' : '1px'
-                }
-                borderColor={
-                  isContextMenuOpened || isPreviewing
-                    ? previewingBorderColor
-                    : borderColor
-                }
-                margin={isContextMenuOpened || isPreviewing ? '-1px' : 0}
-                rounded="lg"
-                cursor={'pointer'}
-                bg={bg}
-                align="flex-start"
-                w="full"
-                transition="border-color 0.2s"
+      <Popover.Trigger
+        render={(props) => (
+          <ContextMenu.Root onOpenChange={setIsContextMenuOpened}>
+            <ContextMenu.Trigger>
+              {/* biome-ignore lint/a11y/noStaticElementInteractions: This node container is a React Flow drag surface with nested controls, not a standalone HTML action. */}
+              <div
+                className="flex relative w-full prevent-group-drag"
+                {...props}
+                ref={setMultipleRefs([blockRef, props.ref!])}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+                data-testid={`block ${block.id}`}
+                pointerEvents={isAnalytics || isDraggingGraph ? "none" : "auto"}
               >
-                <BlockIcon
-                  type={block.type}
-                  mt="1"
-                  data-testid={`${block.id}-icon`}
-                />
-                <BlockNodeContent block={block} indices={indices} />
-                {(hasIcomingEdge || isDefined(connectingIds)) && (
-                  <TargetEndpoint
-                    pos="absolute"
-                    left="-34px"
-                    top="16px"
-                    blockId={block.id}
-                    groupId={block.groupId}
-                  />
-                )}
-                {isConnectable && hasDefaultConnector(block) && (
-                  <SourceEndpoint
-                    source={{
-                      groupId: block.groupId,
-                      blockId: block.id,
-                    }}
-                    pos="absolute"
-                    right="-34px"
-                    bottom="10px"
-                  />
-                )}
-              </HStack>
-            </Flex>
-          </PopoverTrigger>
-          {hasSettingsPopover(block) && (
-            <>
-              <SettingsPopoverContent
-                block={block}
-                onExpandClick={handleExpandClick}
-                onBlockChange={handleBlockUpdate}
-              />
-              <ParentModalProvider>
-                <SettingsModal isOpen={isModalOpen} onClose={handleModalClose}>
-                  <BlockSettings
-                    block={block}
-                    onBlockChange={handleBlockUpdate}
-                  />
-                </SettingsModal>
-              </ParentModalProvider>
-            </>
-          )}
-          {typebot && isMediaBubbleBlock(block) && (
-            <MediaBubblePopoverContent
-              typebotId={typebot.id}
+                <div
+                  className={cx(
+                    "flex gap-2 flex-1 p-3 rounded-lg items-start w-full text-left select-none transition-[border-color] cursor-pointer bg-gray-2 dark:border-gray-3",
+                    isContextMenuOpened || isPreviewing
+                      ? "border-2 border-orange-8 dark:border-orange-8 -m-px"
+                      : "border",
+                  )}
+                >
+                  <BlockIcon type={block.type} className="mt-1" />
+                  {typebot?.groups.at(indices.groupIndex)?.id && (
+                    <BlockNodeContent
+                      block={block}
+                      indices={indices}
+                      groupId={
+                        typebot.groups.at(indices.groupIndex)?.id as string
+                      }
+                    />
+                  )}
+                  {(hasIcomingEdge || isDefined(connectingIds)) && (
+                    <TargetEndpoint
+                      className="absolute left-[-34px] top-[16px]"
+                      blockId={block.id}
+                      groupId={groupId}
+                    />
+                  )}
+                  {(isConnectable ||
+                    (pathname.endsWith("analytics") && isInputBlock(block))) &&
+                    hasDefaultConnector(block) &&
+                    groupId && (
+                      <BlockSourceEndpoint
+                        source={{
+                          blockId: block.id,
+                        }}
+                        groupId={groupId}
+                        className="absolute right-[-34px] bottom-[10px]"
+                        isHidden={!isConnectable}
+                      />
+                    )}
+                </div>
+              </div>
+            </ContextMenu.Trigger>
+            <BlockNodeContextMenuPopup
+              indices={indices}
               block={block}
-              onContentChange={handleContentChange}
+              onTurnIntoClick={convertBlock}
             />
-          )}
-        </Popover>
-      )}
-    </ContextMenu>
-  )
-}
+          </ContextMenu.Root>
+        )}
+      />
+      {/* Prevent triggering parent group context menu */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: This wrapper only stops context-menu propagation for nested popovers. */}
+      <div onContextMenu={(e) => e.stopPropagation()}>
+        {hasSettingsPopover(block) && (
+          <SettingsPopoverContent
+            node={block}
+            groupId={groupId}
+            onNodeChange={handleBlockUpdate}
+            side="left"
+            isExpanded={isSettingsPopoverExpanded}
+            onExpandClick={() =>
+              setIsSettingsPopoverExpanded(!isSettingsPopoverExpanded)
+            }
+          />
+        )}
+        {typebot && isMediaBubbleBlock(block) && (
+          <MediaBubblePopoverContent
+            uploadFileProps={{
+              workspaceId: typebot.workspaceId,
+              typebotId: typebot.id,
+              blockId: block.id,
+            }}
+            block={block}
+            side="left"
+            onContentChange={handleContentChange}
+          />
+        )}
+      </div>
+    </Popover.Root>
+  );
+};
 
-const hasSettingsPopover = (block: Block): block is BlockWithOptions =>
-  !isBubbleBlock(block) && block.type !== LogicBlockType.CONDITION
+const hasSettingsPopover = (block: BlockV6): block is BlockWithOptions =>
+  !isBubbleBlock(block) &&
+  block.type !== LogicBlockType.CONDITION &&
+  block.type !== LogicBlockType.RETURN;
 
 const isMediaBubbleBlock = (
-  block: Block
+  block: BlockV6,
 ): block is Exclude<BubbleBlock, TextBubbleBlock> =>
-  isBubbleBlock(block) && !isTextBubbleBlock(block)
+  isBubbleBlock(block) && !isTextBubbleBlock(block);

@@ -1,265 +1,238 @@
-import {
-  Stack,
-  HStack,
-  Input,
-  Button,
-  Menu,
-  MenuButton,
-  MenuItem,
-  MenuList,
-  SkeletonCircle,
-  Text,
-  Tag,
-  Flex,
-  Skeleton,
-} from '@chakra-ui/react'
-import { ChevronLeftIcon } from '@/components/icons'
-import { useToast } from '@/hooks/useToast'
-import { useTypebot } from '@/features/editor/providers/TypebotProvider'
-import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
-import { CollaborationType, WorkspaceRole } from '@typebot.io/prisma'
-import React, { FormEvent, useState } from 'react'
-import { CollaboratorItem } from './CollaboratorButton'
-import { EmojiOrImageIcon } from '@/components/EmojiOrImageIcon'
-import { useCollaborators } from '../hooks/useCollaborators'
-import { useInvitations } from '../hooks/useInvitations'
-import { updateInvitationQuery } from '../queries/updateInvitationQuery'
-import { deleteInvitationQuery } from '../queries/deleteInvitationQuery'
-import { updateCollaboratorQuery } from '../queries/updateCollaboratorQuery'
-import { deleteCollaboratorQuery } from '../queries/deleteCollaboratorQuery'
-import { sendInvitationQuery } from '../queries/sendInvitationQuery'
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslate } from "@tolgee/react";
+import { CollaborationType } from "@typebot.io/prisma/enum";
+import { Badge } from "@typebot.io/ui/components/Badge";
+import { Button } from "@typebot.io/ui/components/Button";
+import { EmojiOrImageIcon } from "@typebot.io/ui/components/EmojiOrImageIcon";
+import { Input } from "@typebot.io/ui/components/Input";
+import { Skeleton } from "@typebot.io/ui/components/Skeleton";
+import { HardDriveIcon } from "@typebot.io/ui/icons/HardDriveIcon";
+import type { FormEvent } from "react";
+import { useState } from "react";
+import { BasicSelect } from "@/components/inputs/BasicSelect";
+import { useTypebot } from "@/features/editor/providers/TypebotProvider";
+import { useWorkspace } from "@/features/workspace/WorkspaceProvider";
+import { orpc } from "@/lib/queryClient";
+import { toast } from "@/lib/toast";
+import { CollaboratorItem } from "./CollaboratorButton";
+import { ReadableCollaborationType } from "./ReadableCollaborationType";
+
+type InvitationType = "READ" | "WRITE";
 
 export const CollaborationList = () => {
-  const { currentRole, workspace } = useWorkspace()
-  const { typebot } = useTypebot()
-  const [invitationType, setInvitationType] = useState<CollaborationType>(
-    CollaborationType.READ
-  )
-  const [invitationEmail, setInvitationEmail] = useState('')
-  const [isSendingInvitation, setIsSendingInvitation] = useState(false)
+  const { currentUserMode, workspace } = useWorkspace();
+  const { t } = useTranslate();
+  const { typebot } = useTypebot();
+  const [invitationType, setInvitationType] = useState<InvitationType>("READ");
+  const [invitationEmail, setInvitationEmail] = useState("");
 
-  const hasFullAccess =
-    (currentRole && currentRole !== WorkspaceRole.GUEST) || false
-
-  const { showToast } = useToast()
   const {
-    collaborators,
+    data: collaboratorsData,
+    refetch: refetchCollaborators,
     isLoading: isCollaboratorsLoading,
-    mutate: mutateCollaborators,
-  } = useCollaborators({
-    typebotId: typebot?.id,
-    onError: (e) =>
-      showToast({
-        title: "Couldn't fetch collaborators",
-        description: e.message,
-      }),
-  })
+  } = useQuery(
+    orpc.collaborators.getCollaborators.queryOptions({
+      input: { typebotId: typebot?.id ?? "" },
+      enabled: !!typebot?.id,
+    }),
+  );
+
   const {
-    invitations,
+    data: invitationsData,
+    refetch: refetchInvitations,
     isLoading: isInvitationsLoading,
-    mutate: mutateInvitations,
-  } = useInvitations({
-    typebotId: typebot?.id,
-    onError: (e) =>
-      showToast({
-        title: "Couldn't fetch invitations",
-        description: e.message,
+  } = useQuery(
+    orpc.collaborators.listInvitations.queryOptions({
+      input: { typebotId: typebot?.id ?? "" },
+      enabled: !!typebot?.id,
+    }),
+  );
+
+  const { mutate: updateInvitation } = useMutation(
+    orpc.collaborators.updateInvitation.mutationOptions({
+      onSuccess: () => refetchInvitations(),
+      onError: (error) =>
+        toast({
+          title: error.name,
+          description: error.message,
+        }),
+    }),
+  );
+
+  const { mutate: deleteInvitation } = useMutation(
+    orpc.collaborators.deleteInvitation.mutationOptions({
+      onSuccess: () => refetchInvitations(),
+      onError: (error) =>
+        toast({
+          title: error.name,
+          description: error.message,
+        }),
+    }),
+  );
+
+  const { mutate: updateCollaborator } = useMutation(
+    orpc.collaborators.updateCollaborator.mutationOptions({
+      onSuccess: () => refetchCollaborators(),
+      onError: (error) =>
+        toast({
+          title: error.name,
+          description: error.message,
+        }),
+    }),
+  );
+
+  const { mutate: deleteCollaborator } = useMutation(
+    orpc.collaborators.deleteCollaborator.mutationOptions({
+      onSuccess: () => refetchCollaborators(),
+      onError: (error) =>
+        toast({
+          title: error.name,
+          description: error.message,
+        }),
+    }),
+  );
+
+  const { mutate: createInvitation, isPending: isSendingInvitation } =
+    useMutation(
+      orpc.collaborators.createInvitation.mutationOptions({
+        onSuccess: () => {
+          refetchInvitations();
+          refetchCollaborators();
+          toast({
+            type: "success",
+            description: t(
+              "share.button.popover.invitationSent.successToast.label",
+            ),
+          });
+          setInvitationEmail("");
+        },
+        onError: (error) =>
+          toast({
+            title: error.name,
+            description: error.message,
+          }),
       }),
-  })
+    );
 
   const handleChangeInvitationCollabType =
-    (email: string) => async (type: CollaborationType) => {
-      if (!typebot || !hasFullAccess) return
-      const { error } = await updateInvitationQuery(typebot?.id, email, {
-        email,
-        typebotId: typebot.id,
-        type,
-      })
-      if (error)
-        return showToast({ title: error.name, description: error.message })
-      mutateInvitations({
-        invitations: (invitations ?? []).map((i) =>
-          i.email === email ? { ...i, type } : i
-        ),
-      })
-    }
-  const handleDeleteInvitation = (email: string) => async () => {
-    if (!typebot || !hasFullAccess) return
-    const { error } = await deleteInvitationQuery(typebot?.id, email)
-    if (error)
-      return showToast({ title: error.name, description: error.message })
-    mutateInvitations({
-      invitations: (invitations ?? []).filter((i) => i.email !== email),
-    })
-  }
+    (email: string) => (type: CollaborationType) => {
+      if (!typebot || currentUserMode === "guest") return;
+      updateInvitation({ email, typebotId: typebot.id, type });
+    };
+
+  const handleDeleteInvitation = (email: string) => () => {
+    if (!typebot || currentUserMode === "guest") return;
+    deleteInvitation({ typebotId: typebot.id, email });
+  };
 
   const handleChangeCollaborationType =
-    (userId: string) => async (type: CollaborationType) => {
-      if (!typebot || !hasFullAccess) return
-      const { error } = await updateCollaboratorQuery(typebot?.id, userId, {
-        userId,
-        type,
-        typebotId: typebot.id,
-      })
-      if (error)
-        return showToast({ title: error.name, description: error.message })
-      mutateCollaborators({
-        collaborators: (collaborators ?? []).map((c) =>
-          c.userId === userId ? { ...c, type } : c
-        ),
-      })
-    }
-  const handleDeleteCollaboration = (userId: string) => async () => {
-    if (!typebot || !hasFullAccess) return
-    const { error } = await deleteCollaboratorQuery(typebot?.id, userId)
-    if (error)
-      return showToast({ title: error.name, description: error.message })
-    mutateCollaborators({
-      collaborators: (collaborators ?? []).filter((c) => c.userId !== userId),
-    })
-  }
+    (userId: string) => (type: CollaborationType) => {
+      if (!typebot || currentUserMode === "guest") return;
+      updateCollaborator({ typebotId: typebot.id, userId, type });
+    };
 
-  const handleInvitationSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!typebot || !hasFullAccess) return
-    setIsSendingInvitation(true)
-    const { error } = await sendInvitationQuery(typebot.id, {
+  const handleDeleteCollaboration = (userId: string) => () => {
+    if (!typebot || currentUserMode === "guest") return;
+    deleteCollaborator({ typebotId: typebot.id, userId });
+  };
+
+  const handleInvitationSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!typebot || currentUserMode === "guest") return;
+    createInvitation({
+      typebotId: typebot.id,
       email: invitationEmail,
       type: invitationType,
-    })
-    setIsSendingInvitation(false)
-    mutateInvitations({ invitations: invitations ?? [] })
-    mutateCollaborators({ collaborators: collaborators ?? [] })
-    if (error)
-      return showToast({ title: error.name, description: error.message })
-    showToast({ status: 'success', title: 'Invitation sent! 📧' })
-    setInvitationEmail('')
-  }
+    });
+  };
+
+  const updateInvitationType = (type: InvitationType) => {
+    setInvitationType(type);
+  };
 
   return (
-    <Stack spacing={1} pt="4" pb="2">
-      <HStack as="form" onSubmit={handleInvitationSubmit} px="4" pb="2">
+    <div className="flex flex-col gap-1 pt-4">
+      <form
+        className="flex items-center gap-2 px-4 pb-2"
+        onSubmit={handleInvitationSubmit}
+      >
         <Input
           size="sm"
-          placeholder="colleague@company.com"
+          placeholder={t("share.button.popover.inviteInput.placeholder")}
           name="inviteEmail"
           value={invitationEmail}
-          onChange={(e) => setInvitationEmail(e.target.value)}
-          rounded="md"
-          isDisabled={!hasFullAccess}
+          onValueChange={setInvitationEmail}
+          disabled={currentUserMode === "guest"}
         />
 
-        {hasFullAccess && (
-          <CollaborationTypeMenuButton
-            type={invitationType}
-            onChange={setInvitationType}
+        {currentUserMode !== "guest" && (
+          <BasicSelect
+            value={invitationType}
+            onChange={updateInvitationType}
+            items={[
+              { label: "Read", value: CollaborationType.READ },
+              { label: "Write", value: CollaborationType.WRITE },
+            ]}
           />
         )}
         <Button
           size="sm"
-          colorScheme="blue"
-          isLoading={isSendingInvitation}
-          flexShrink={0}
+          disabled={currentUserMode === "guest" || isSendingInvitation}
           type="submit"
-          isDisabled={!hasFullAccess}
         >
-          Invite
+          {t("share.button.popover.inviteButton.label")}
         </Button>
-      </HStack>
+      </form>
       {workspace && (
-        <Flex py="2" px="4" justifyContent="space-between" alignItems="center">
-          <HStack minW={0} spacing={3}>
-            <EmojiOrImageIcon icon={workspace.icon} boxSize="32px" />
-            <Text fontSize="15px" noOfLines={1}>
-              Everyone at {workspace.name}
-            </Text>
-          </HStack>
-          <Tag flexShrink={0}>
-            {convertCollaborationTypeEnumToReadable(
-              CollaborationType.FULL_ACCESS
-            )}
-          </Tag>
-        </Flex>
+        <div className="flex py-2 px-4 justify-between items-center">
+          <div className="flex items-center min-w-0 gap-3">
+            <EmojiOrImageIcon
+              icon={workspace.icon}
+              className="size-6.25 text-2xl"
+              defaultIcon={<HardDriveIcon className="size-full" />}
+            />
+            <p className="text-[15px] truncate">Everyone at {workspace.name}</p>
+          </div>
+          <Badge className="shrink-0">
+            <ReadableCollaborationType type={CollaborationType.FULL_ACCESS} />
+          </Badge>
+        </div>
       )}
-      {invitations?.map(({ email, type }) => (
+      {invitationsData?.invitations.map(({ email, type }) => (
         <CollaboratorItem
           key={email}
           email={email}
           type={type}
-          isOwner={hasFullAccess}
+          isOwner={currentUserMode !== "guest"}
           onDeleteClick={handleDeleteInvitation(email)}
           onChangeCollaborationType={handleChangeInvitationCollabType(email)}
           isGuest
         />
       ))}
-      {collaborators?.map(({ user, type, userId }) => (
+      {collaboratorsData?.collaborators.map(({ user, type, userId }) => (
         <CollaboratorItem
           key={userId}
-          email={user.email ?? ''}
+          email={user.email ?? ""}
           image={user.image ?? undefined}
           name={user.name ?? undefined}
           type={type}
-          isOwner={hasFullAccess}
-          onDeleteClick={handleDeleteCollaboration(userId ?? '')}
+          isOwner={currentUserMode !== "guest"}
+          onDeleteClick={handleDeleteCollaboration(userId ?? "")}
           onChangeCollaborationType={handleChangeCollaborationType(userId)}
         />
       ))}
       {(isCollaboratorsLoading || isInvitationsLoading) && (
-        <HStack p="4" justifyContent="space-between">
-          <HStack>
-            <SkeletonCircle boxSize="32px" />
-            <Stack>
-              <Skeleton width="130px" h="6px" />
-              <Skeleton width="200px" h="6px" />
-            </Stack>
-          </HStack>
-          <Skeleton width="80px" h="10px" />
-        </HStack>
+        <div className="flex items-center gap-2 p-4 justify-between">
+          <div className="flex items-center gap-2">
+            <Skeleton className="size-8 rounded-full" />
+            <div className="flex flex-col gap-2">
+              <Skeleton className="w-32 h-1" />
+              <Skeleton className="w-40 h-1" />
+            </div>
+          </div>
+          <Skeleton className="w-20 h-2" />
+        </div>
       )}
-    </Stack>
-  )
-}
-
-const CollaborationTypeMenuButton = ({
-  type,
-  onChange,
-}: {
-  type: CollaborationType
-  onChange: (type: CollaborationType) => void
-}) => {
-  return (
-    <Menu placement="bottom-end">
-      <MenuButton
-        flexShrink={0}
-        size="sm"
-        as={Button}
-        rightIcon={<ChevronLeftIcon transform={'rotate(-90deg)'} />}
-      >
-        {convertCollaborationTypeEnumToReadable(type)}
-      </MenuButton>
-      <MenuList minW={0}>
-        <Stack maxH={'35vh'} overflowY="scroll" spacing="0">
-          <MenuItem onClick={() => onChange(CollaborationType.READ)}>
-            {convertCollaborationTypeEnumToReadable(CollaborationType.READ)}
-          </MenuItem>
-          <MenuItem onClick={() => onChange(CollaborationType.WRITE)}>
-            {convertCollaborationTypeEnumToReadable(CollaborationType.WRITE)}
-          </MenuItem>
-        </Stack>
-      </MenuList>
-    </Menu>
-  )
-}
-
-export const convertCollaborationTypeEnumToReadable = (
-  type: CollaborationType
-) => {
-  switch (type) {
-    case CollaborationType.READ:
-      return 'Can view'
-    case CollaborationType.WRITE:
-      return 'Can edit'
-    case CollaborationType.FULL_ACCESS:
-      return 'Full access'
-  }
-}
+    </div>
+  );
+};

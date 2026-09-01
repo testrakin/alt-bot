@@ -1,65 +1,88 @@
-import { Seo } from '@/components/Seo'
-import { Flex, Spinner, useColorModeValue } from '@chakra-ui/react'
-import {
-  EditorProvider,
-  useEditor,
-  RightPanel as RightPanelEnum,
-} from '../providers/EditorProvider'
-import { useTypebot } from '../providers/TypebotProvider'
-import { BlocksSideBar } from './BlocksSideBar'
-import { BoardMenuButton } from './BoardMenuButton'
-import { GettingStartedModal } from './GettingStartedModal'
-import { PreviewDrawer } from '@/features/preview/components/PreviewDrawer'
-import { TypebotHeader } from './TypebotHeader'
-import { Graph } from '@/features/graph/components/Graph'
-import { GraphDndProvider } from '@/features/graph/providers/GraphDndProvider'
-import { GraphProvider } from '@/features/graph/providers/GraphProvider'
-import { GroupsCoordinatesProvider } from '@/features/graph/providers/GroupsCoordinateProvider'
+import { LoaderCircleIcon } from "@typebot.io/ui/icons/LoaderCircleIcon";
+import { useRef } from "react";
+import { Seo } from "@/components/Seo";
+import { Graph } from "@/features/graph/components/Graph";
+import { GraphDndProvider } from "@/features/graph/providers/GraphDndProvider";
+import { GraphProvider } from "@/features/graph/providers/GraphProvider";
+import { VideoOnboardingFloatingWindow } from "@/features/onboarding/components/VideoOnboardingFloatingWindow";
+import { PreviewDrawer } from "@/features/preview/components/PreviewDrawer";
+import { VariablesDrawer } from "@/features/preview/components/VariablesDrawer";
+import { useWorkspace } from "@/features/workspace/WorkspaceProvider";
+import { useRightPanel } from "@/hooks/useRightPanel";
+import { useThemeValue } from "@/hooks/useThemeValue";
+import { EditorProvider } from "../providers/EditorProvider";
+import { useTypebot } from "../providers/TypebotProvider";
+import { BlocksSideBar } from "./BlocksSideBar";
+import { SuspectedTypebotBanner } from "./SuspectedTypebotBanner";
+import { TypebotHeader } from "./TypebotHeader";
 
 export const EditorPage = () => {
-  const { typebot, isReadOnly } = useTypebot()
+  const { typebot, currentUserMode } = useTypebot();
+  const { workspace } = useWorkspace();
+  const editorContainerRef = useRef<HTMLDivElement>(null);
+  const backgroundImage = useThemeValue(
+    "radial-gradient(var(--gray-7) 1px, transparent 0)",
+    "radial-gradient(var(--gray-5) 1px, transparent 0)",
+  );
+
+  const isSuspicious = typebot?.riskLevel === 100 && !workspace?.isVerified;
 
   return (
     <EditorProvider>
-      <Seo title={typebot?.name ? `${typebot.name} | Editor` : 'Editor'} />
-      <Flex overflow="clip" h="100vh" flexDir="column" id="editor-container">
-        <GettingStartedModal />
+      <Seo title={typebot?.name ? `${typebot.name} | Editor` : "Editor"} />
+      <div
+        className="flex overflow-clip h-screen flex-col"
+        ref={editorContainerRef}
+      >
+        <VideoOnboardingFloatingWindow type="editor" />
+        {isSuspicious && <SuspectedTypebotBanner typebotId={typebot.id} />}
         <TypebotHeader />
-        <Flex
-          flex="1"
-          pos="relative"
-          h="full"
-          bgColor={useColorModeValue('#f4f5f8', 'gray.850')}
-          backgroundImage={useColorModeValue(
-            'radial-gradient(#c6d0e1 1px, transparent 0)',
-            'radial-gradient(#2f2f39 1px, transparent 0)'
-          )}
-          backgroundSize="40px 40px"
-          backgroundPosition="-19px -19px"
+        <div
+          className="flex flex-1 relative overflow-clip h-full bg-gray-3 dark:bg-gray-2"
+          style={{
+            backgroundImage: backgroundImage,
+            backgroundSize: "40px 40px",
+            backgroundPosition: "-19px -19px",
+          }}
         >
           {typebot ? (
             <GraphDndProvider>
-              {!isReadOnly && <BlocksSideBar />}
-              <GraphProvider isReadOnly={isReadOnly}>
-                <GroupsCoordinatesProvider groups={typebot.groups}>
-                  <Graph flex="1" typebot={typebot} key={typebot.id} />
-                  <BoardMenuButton pos="absolute" right="40px" top="20px" />
-                  <RightPanel />
-                </GroupsCoordinatesProvider>
+              <GraphProvider
+                isReadOnly={
+                  currentUserMode === "read" || currentUserMode === "guest"
+                }
+              >
+                <Graph
+                  className="flex-1"
+                  editorContainerRef={editorContainerRef}
+                  typebot={typebot}
+                  key={typebot.id}
+                />
+
+                <RightPanel />
               </GraphProvider>
+              {currentUserMode === "write" && <BlocksSideBar />}
             </GraphDndProvider>
           ) : (
-            <Flex justify="center" align="center" boxSize="full">
-              <Spinner color="gray" />
-            </Flex>
+            <div className="flex justify-center items-center size-full">
+              <LoaderCircleIcon className="animate-spin" />
+            </div>
           )}
-        </Flex>
-      </Flex>
+        </div>
+      </div>
     </EditorProvider>
-  )
-}
+  );
+};
 
 const RightPanel = () => {
-  const { rightPanel } = useEditor()
-  return rightPanel === RightPanelEnum.PREVIEW ? <PreviewDrawer /> : <></>
-}
+  const [rightPanel, setRightPanel] = useRightPanel();
+
+  switch (rightPanel) {
+    case "preview":
+      return <PreviewDrawer />;
+    case "variables":
+      return <VariablesDrawer onClose={() => setRightPanel(null)} />;
+    case null:
+      return null;
+  }
+};

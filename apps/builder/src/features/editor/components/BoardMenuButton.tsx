@@ -1,86 +1,65 @@
-import {
-  Flex,
-  FlexProps,
-  IconButton,
-  Menu,
-  MenuButton,
-  MenuItem,
-  MenuList,
-  useColorModeValue,
-  useDisclosure,
-} from '@chakra-ui/react'
-import assert from 'assert'
-import {
-  DownloadIcon,
-  MoreVerticalIcon,
-  SettingsIcon,
-} from '@/components/icons'
-import { useTypebot } from '../providers/TypebotProvider'
-import { useUser } from '@/features/account/hooks/useUser'
-import { useRouter } from 'next/router'
-import React, { useEffect, useState } from 'react'
-import { isNotDefined } from '@typebot.io/lib'
-import { EditorSettingsModal } from './EditorSettingsModal'
-import { parseDefaultPublicId } from '@/features/publish/helpers/parseDefaultPublicId'
+import { useTranslate } from "@tolgee/react";
+import { getPublicId } from "@typebot.io/typebot/helpers/getPublicId";
+import { Menu } from "@typebot.io/ui/components/Menu";
+import { useOpenControls } from "@typebot.io/ui/hooks/useOpenControls";
+import { Book02Icon } from "@typebot.io/ui/icons/Book02Icon";
+import { Download01Icon } from "@typebot.io/ui/icons/Download01Icon";
+import { MoreHorizontalIcon } from "@typebot.io/ui/icons/MoreHorizontalIcon";
+import { Settings01Icon } from "@typebot.io/ui/icons/Settings01Icon";
+import { useState } from "react";
+import { useTypebot } from "../providers/TypebotProvider";
+import { EditorSettingsDialog } from "./EditorSettingsDialog";
 
-export const BoardMenuButton = (props: FlexProps) => {
-  const { query } = useRouter()
-  const { typebot } = useTypebot()
-  const { user } = useUser()
-  const [isDownloading, setIsDownloading] = useState(false)
-  const { isOpen, onOpen, onClose } = useDisclosure()
-
-  useEffect(() => {
-    if (
-      user &&
-      isNotDefined(user.graphNavigation) &&
-      isNotDefined(query.isFirstBot)
-    )
-      onOpen()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+export const BoardMenuButton = () => {
+  const { typebot, currentUserMode } = useTypebot();
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { isOpen, onOpen, onClose } = useOpenControls();
+  const { t } = useTranslate();
 
   const downloadFlow = () => {
-    assert(typebot)
-    setIsDownloading(true)
+    if (!typebot) return;
+    setIsDownloading(true);
     const data =
-      'data:application/json;charset=utf-8,' +
-      encodeURIComponent(JSON.stringify(typebot))
-    const fileName = `typebot-export-${parseDefaultPublicId(
-      typebot.name,
-      typebot.id
-    )}.json`
-    const linkElement = document.createElement('a')
-    linkElement.setAttribute('href', data)
-    linkElement.setAttribute('download', fileName)
-    linkElement.click()
-    setIsDownloading(false)
-  }
+      "data:application/json;charset=utf-8," +
+      encodeURIComponent(JSON.stringify(typebot));
+    const fileName = `typebot-export-${getPublicId(typebot)}.json`;
+    const linkElement = document.createElement("a");
+    linkElement.setAttribute("href", data);
+    linkElement.setAttribute("download", fileName);
+    linkElement.click();
+    setIsDownloading(false);
+  };
+
+  const redirectToDocumentation = () =>
+    window.open("https://docs.typebot.com/editor/graph", "_blank");
+
   return (
-    <Flex
-      bgColor={useColorModeValue('white', 'gray.900')}
-      rounded="md"
-      {...props}
-    >
-      <Menu>
-        <MenuButton
-          as={IconButton}
-          icon={<MoreVerticalIcon transform={'rotate(90deg)'} />}
-          isLoading={isDownloading}
-          size="sm"
-          shadow="lg"
-          bgColor={useColorModeValue('white', undefined)}
-        />
-        <MenuList>
-          <MenuItem icon={<SettingsIcon />} onClick={onOpen}>
-            Editor settings
-          </MenuItem>
-          <MenuItem icon={<DownloadIcon />} onClick={downloadFlow}>
-            Export flow
-          </MenuItem>
-        </MenuList>
-        <EditorSettingsModal isOpen={isOpen} onClose={onClose} />
-      </Menu>
-    </Flex>
-  )
-}
+    <Menu.Root>
+      <Menu.TriggerButton
+        disabled={isDownloading}
+        size="icon"
+        className="size-8"
+        variant="secondary"
+      >
+        <MoreHorizontalIcon />
+      </Menu.TriggerButton>
+      <Menu.Popup align="end">
+        <Menu.Item onClick={redirectToDocumentation}>
+          <Book02Icon />
+          {t("editor.graph.menu.documentationItem.label")}
+        </Menu.Item>
+        <Menu.Item onClick={onOpen}>
+          <Settings01Icon />
+          {t("editor.graph.menu.editorSettingsItem.label")}
+        </Menu.Item>
+        {currentUserMode !== "guest" ? (
+          <Menu.Item onClick={downloadFlow}>
+            <Download01Icon />
+            {t("editor.graph.menu.exportFlowItem.label")}
+          </Menu.Item>
+        ) : null}
+      </Menu.Popup>
+      <EditorSettingsDialog isOpen={isOpen} onClose={onClose} />
+    </Menu.Root>
+  );
+};

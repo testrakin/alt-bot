@@ -1,29 +1,21 @@
-import {
-  Avatar,
-  HStack,
-  Menu,
-  MenuButton,
-  MenuItem,
-  MenuList,
-  Stack,
-  Tag,
-  Text,
-  useColorModeValue,
-} from '@chakra-ui/react'
-import { CollaborationType } from '@typebot.io/prisma'
-import React from 'react'
-import { convertCollaborationTypeEnumToReadable } from './CollaborationList'
+import { useTranslate } from "@tolgee/react";
+import { CollaborationType } from "@typebot.io/prisma/enum";
+import { Avatar } from "@typebot.io/ui/components/Avatar";
+import { Badge } from "@typebot.io/ui/components/Badge";
+import { Menu } from "@typebot.io/ui/components/Menu";
+import { cx } from "@typebot.io/ui/lib/cva";
+import { ReadableCollaborationType } from "./ReadableCollaborationType";
 
 type Props = {
-  image?: string
-  name?: string
-  email: string
-  type: CollaborationType
-  isGuest?: boolean
-  isOwner: boolean
-  onDeleteClick: () => void
-  onChangeCollaborationType: (type: CollaborationType) => void
-}
+  image?: string;
+  name?: string;
+  email: string;
+  type: CollaborationType;
+  isGuest?: boolean;
+  isOwner: boolean;
+  onDeleteClick: () => void;
+  onChangeCollaborationType: (type: CollaborationType) => void;
+};
 
 export const CollaboratorItem = ({
   email,
@@ -35,73 +27,74 @@ export const CollaboratorItem = ({
   onDeleteClick,
   onChangeCollaborationType,
 }: Props) => {
-  const hoverBgColor = useColorModeValue('gray.100', 'gray.700')
+  const { t } = useTranslate();
   const handleEditClick = () =>
-    onChangeCollaborationType(CollaborationType.WRITE)
+    onChangeCollaborationType(CollaborationType.WRITE);
   const handleViewClick = () =>
-    onChangeCollaborationType(CollaborationType.READ)
+    onChangeCollaborationType(CollaborationType.READ);
   return (
-    <Menu placement="bottom-end">
-      <MenuButton _hover={{ backgroundColor: hoverBgColor }} borderRadius="md">
+    <Menu.Root>
+      <Menu.Trigger className="rounded-md hover:bg-gray-2 transition-colors">
         <CollaboratorIdentityContent
           email={email}
           name={name}
           image={image}
           isGuest={isGuest}
-          tag={convertCollaborationTypeEnumToReadable(type)}
+          type={type}
         />
-      </MenuButton>
+      </Menu.Trigger>
       {isOwner && (
-        <MenuList shadow="lg">
-          <MenuItem onClick={handleEditClick}>
-            {convertCollaborationTypeEnumToReadable(CollaborationType.WRITE)}
-          </MenuItem>
-          <MenuItem onClick={handleViewClick}>
-            {convertCollaborationTypeEnumToReadable(CollaborationType.READ)}
-          </MenuItem>
-          <MenuItem color="red.500" onClick={onDeleteClick}>
-            Remove
-          </MenuItem>
-        </MenuList>
+        <Menu.Popup>
+          <Menu.Item onClick={handleEditClick}>
+            <ReadableCollaborationType type={CollaborationType.WRITE} />
+          </Menu.Item>
+          <Menu.Item onClick={handleViewClick}>
+            <ReadableCollaborationType type={CollaborationType.READ} />
+          </Menu.Item>
+          <Menu.Item className="text-red-9" onClick={onDeleteClick}>
+            {t("remove")}
+          </Menu.Item>
+        </Menu.Popup>
       )}
-    </Menu>
-  )
-}
+    </Menu.Root>
+  );
+};
 
 export const CollaboratorIdentityContent = ({
   name,
-  tag,
+  type,
   isGuest = false,
   image,
   email,
 }: {
-  name?: string
-  tag?: string
-  image?: string
-  isGuest?: boolean
-  email: string
-}) => (
-  <HStack justifyContent="space-between" maxW="full" py="2" px="4">
-    <HStack minW={0} spacing={3}>
-      <Avatar name={name} src={image} size="sm" />
-      <Stack spacing={0} minW="0">
-        {name && (
-          <Text textAlign="left" fontSize="15px">
-            {name}
-          </Text>
-        )}
-        <Text
-          color="gray.500"
-          fontSize={name ? '14px' : 'inherit'}
-          noOfLines={1}
-        >
-          {email}
-        </Text>
-      </Stack>
-    </HStack>
-    <HStack flexShrink={0}>
-      {isGuest && <Tag color="gray.400">Pending</Tag>}
-      <Tag>{tag}</Tag>
-    </HStack>
-  </HStack>
-)
+  name?: string;
+  type: CollaborationType;
+  image?: string;
+  isGuest?: boolean;
+  email: string;
+}) => {
+  const { t } = useTranslate();
+
+  return (
+    <div className="flex items-center gap-2 justify-between max-w-full py-2 px-4">
+      <div className="flex items-center min-w-0 gap-3">
+        <Avatar.Root className="size-6">
+          <Avatar.Image src={image} alt="User" />
+          <Avatar.Fallback>{name?.charAt(0)}</Avatar.Fallback>
+        </Avatar.Root>
+        <div className="flex flex-col gap-0 min-w-0">
+          {name && <p className="text-left text-[15px]">{name}</p>}
+          <p className={cx(name ? "text-sm" : undefined, "truncate")}>
+            {email}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {isGuest && <Badge>{t("pending")}</Badge>}
+        <Badge>
+          <ReadableCollaborationType type={type} />
+        </Badge>
+      </div>
+    </div>
+  );
+};

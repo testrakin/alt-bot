@@ -1,73 +1,84 @@
-import { ImageUploadContent } from '@/components/ImageUploadContent'
-import { useTypebot } from '@/features/editor/providers/TypebotProvider'
+import { useTranslate } from "@tolgee/react";
+import { isNotEmpty } from "@typebot.io/lib/utils";
 import {
-  Flex,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Text,
-  Image,
-  Button,
-} from '@chakra-ui/react'
-import { isNotEmpty } from '@typebot.io/lib'
-import { Background, BackgroundType } from '@typebot.io/schemas'
-import React from 'react'
-import { ColorPicker } from '../../../../components/ColorPicker'
+  BackgroundType,
+  defaultBackgroundColor,
+  defaultBackgroundType,
+} from "@typebot.io/theme/constants";
+import type { Background } from "@typebot.io/theme/schemas";
+import { Button } from "@typebot.io/ui/components/Button";
+import { Popover } from "@typebot.io/ui/components/Popover";
+import { useOpenControls } from "@typebot.io/ui/hooks/useOpenControls";
+import React from "react";
+import { ImageUploadContent } from "@/components/ImageUploadContent";
+import { useTypebot } from "@/features/editor/providers/TypebotProvider";
+import { ColorPicker } from "../../../../components/ColorPicker";
 
 type BackgroundContentProps = {
-  background?: Background
-  onBackgroundContentChange: (content: string) => void
-}
-
-const defaultBackgroundColor = '#ffffff'
+  background?: Background;
+  onBackgroundContentChange: (content: string) => void;
+};
 
 export const BackgroundContent = ({
   background,
   onBackgroundContentChange,
 }: BackgroundContentProps) => {
-  const { typebot } = useTypebot()
+  const controls = useOpenControls();
+  const { t } = useTranslate();
+  const { typebot } = useTypebot();
   const handleContentChange = (content: string) =>
-    onBackgroundContentChange(content)
+    onBackgroundContentChange(content);
+  const popoverContainerRef = React.useRef<HTMLDivElement>(null);
 
-  switch (background?.type) {
-    case BackgroundType.COLOR:
-      return (
-        <Flex justify="space-between" align="center">
-          <Text>Background color:</Text>
-          <ColorPicker
-            value={background.content ?? defaultBackgroundColor}
-            onColorChange={handleContentChange}
-          />
-        </Flex>
-      )
-    case BackgroundType.IMAGE:
-      return (
-        <Popover isLazy placement="top">
-          <PopoverTrigger>
-            {isNotEmpty(background.content) ? (
-              <Image
-                src={background.content}
-                alt="Background image"
-                cursor="pointer"
-                _hover={{ filter: 'brightness(.9)' }}
-                transition="filter 200ms"
-                rounded="md"
+  if ((background?.type ?? defaultBackgroundType) === BackgroundType.IMAGE) {
+    if (!typebot) return null;
+    return (
+      <div className="flex" ref={popoverContainerRef}>
+        <Popover.Root {...controls}>
+          <Popover.Trigger>
+            {isNotEmpty(background?.content) ? (
+              <img
+                className="cursor-pointer transition-filter duration-200 rounded-md hover:brightness-90 w-full max-h-[200px] object-cover"
+                src={background?.content}
+                alt={t("theme.sideMenu.global.background.image.alt")}
               />
             ) : (
-              <Button>Select an image</Button>
+              <Button variant="secondary" className="w-full">
+                {t("theme.sideMenu.global.background.image.button")}
+              </Button>
             )}
-          </PopoverTrigger>
-          <PopoverContent p="4">
+          </Popover.Trigger>
+          <Popover.Popup className="w-[500px]" side="top">
             <ImageUploadContent
-              filePath={`typebots/${typebot?.id}/background`}
-              defaultUrl={background.content}
+              uploadFileProps={{
+                workspaceId: typebot.workspaceId,
+                typebotId: typebot.id,
+                fileName: "background",
+              }}
+              defaultUrl={background?.content}
               onSubmit={handleContentChange}
-              isGiphyEnabled={false}
+              additionalTabs={{
+                unsplash: true,
+              }}
             />
-          </PopoverContent>
-        </Popover>
-      )
-    default:
-      return <></>
+          </Popover.Popup>
+        </Popover.Root>
+      </div>
+    );
   }
-}
+  if (
+    typebot &&
+    (background?.type ?? defaultBackgroundType) === BackgroundType.COLOR
+  ) {
+    return (
+      <div className="flex justify-between items-center">
+        <p>{t("theme.sideMenu.global.background.color")}</p>
+        <ColorPicker
+          value={background?.content ?? defaultBackgroundColor[typebot.version]}
+          onColorChange={handleContentChange}
+        />
+      </div>
+    );
+  }
+  return null;
+};

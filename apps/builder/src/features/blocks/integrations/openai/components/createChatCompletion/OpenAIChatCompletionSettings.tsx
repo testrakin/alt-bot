@@ -1,51 +1,42 @@
-import { DropdownList } from '@/components/DropdownList'
-import { TableList } from '@/components/TableList'
-import {
-  chatCompletionModels,
-  ChatCompletionOpenAIOptions,
-} from '@typebot.io/schemas/features/blocks/integrations/openai'
-import { ChatCompletionMessageItem } from './ChatCompletionMessageItem'
-import {
-  Accordion,
-  AccordionButton,
-  AccordionIcon,
-  AccordionItem,
-  AccordionPanel,
-  Stack,
-  Text,
-} from '@chakra-ui/react'
-import { TextLink } from '@/components/TextLink'
-import { ChatCompletionResponseItem } from './ChatCompletionResponseItem'
-import { NumberInput } from '@/components/inputs'
+import type { ChatCompletionOpenAIOptions } from "@typebot.io/blocks-integrations/openai/schema";
+import { Accordion } from "@typebot.io/ui/components/Accordion";
+import { Field } from "@typebot.io/ui/components/Field";
+import { BasicNumberInput } from "@/components/inputs/BasicNumberInput";
+import { TableList } from "@/components/TableList";
+import { TextLink } from "@/components/TextLink";
+import { ModelsDropdown } from "../ModelsDropdown";
+import { ChatCompletionMessageItem } from "./ChatCompletionMessageItem";
+import { ChatCompletionResponseItem } from "./ChatCompletionResponseItem";
 
 const apiReferenceUrl =
-  'https://platform.openai.com/docs/api-reference/chat/create'
+  "https://platform.openai.com/docs/api-reference/chat/create";
 
 type Props = {
-  options: ChatCompletionOpenAIOptions
-  onOptionsChange: (options: ChatCompletionOpenAIOptions) => void
-}
+  options: ChatCompletionOpenAIOptions;
+  onOptionsChange: (options: ChatCompletionOpenAIOptions) => void;
+};
 
 export const OpenAIChatCompletionSettings = ({
   options,
   onOptionsChange,
 }: Props) => {
-  const updateModel = (model: (typeof chatCompletionModels)[number]) => {
+  const updateModel = (model: string | undefined) => {
+    if (!model) return;
     onOptionsChange({
       ...options,
       model,
-    })
-  }
+    });
+  };
 
   const updateMessages = (messages: typeof options.messages) => {
     onOptionsChange({
       ...options,
       messages,
-    })
-  }
+    });
+  };
 
   const updateTemperature = (
-    temperature: number | `{{${string}}}` | undefined
+    temperature: number | `{{${string}}}` | undefined,
   ) => {
     onOptionsChange({
       ...options,
@@ -53,87 +44,91 @@ export const OpenAIChatCompletionSettings = ({
         ...options.advancedSettings,
         temperature,
       },
-    })
-  }
+    });
+  };
 
   const updateResponseMapping = (
-    responseMapping: typeof options.responseMapping
+    responseMapping: typeof options.responseMapping,
   ) => {
     onOptionsChange({
       ...options,
       responseMapping,
-    })
-  }
+    });
+  };
 
   return (
-    <Stack spacing={4} pt="2">
-      <Text fontSize="sm" color="gray.500">
-        Read the{' '}
+    <div className="flex flex-col gap-4 pt-2">
+      <p className="text-sm" color="gray.500">
+        Read the{" "}
         <TextLink href={apiReferenceUrl} isExternal>
           API reference
-        </TextLink>{' '}
+        </TextLink>{" "}
         to better understand the available options.
-      </Text>
-      <DropdownList
-        currentItem={options.model}
-        items={chatCompletionModels}
-        onItemSelect={updateModel}
-      />
-      <Accordion allowMultiple>
-        <AccordionItem>
-          <AccordionButton>
-            <Text w="full" textAlign="left">
-              Messages
-            </Text>
-            <AccordionIcon />
-          </AccordionButton>
+      </p>
+      {options.credentialsId && (
+        <>
+          <ModelsDropdown
+            credentialsId={options.credentialsId}
+            defaultValue={options.model}
+            baseUrl={options.baseUrl}
+            apiVersion={options.apiVersion}
+            type="gpt"
+            onChange={updateModel}
+          />
+          <Accordion.Root>
+            <Accordion.Item>
+              <Accordion.Trigger>
+                <p className="w-full text-left">Messages</p>
+              </Accordion.Trigger>
 
-          <AccordionPanel pt="4">
-            <TableList
-              initialItems={options.messages}
-              Item={ChatCompletionMessageItem}
-              onItemsChange={updateMessages}
-              isOrdered
-              addLabel="Add message"
-            />
-          </AccordionPanel>
-        </AccordionItem>
-        <AccordionItem>
-          <AccordionButton>
-            <Text w="full" textAlign="left">
-              Advanced settings
-            </Text>
-            <AccordionIcon />
-          </AccordionButton>
-          <AccordionPanel>
-            <NumberInput
-              label="Temperature"
-              placeholder="1"
-              max={2}
-              min={0}
-              step={0.1}
-              defaultValue={options.advancedSettings?.temperature}
-              onValueChange={updateTemperature}
-            />
-          </AccordionPanel>
-        </AccordionItem>
-        <AccordionItem>
-          <AccordionButton>
-            <Text w="full" textAlign="left">
-              Save answer
-            </Text>
-            <AccordionIcon />
-          </AccordionButton>
-
-          <AccordionPanel pt="4">
-            <TableList
-              initialItems={options.responseMapping}
-              Item={ChatCompletionResponseItem}
-              onItemsChange={updateResponseMapping}
-            />
-          </AccordionPanel>
-        </AccordionItem>
-      </Accordion>
-    </Stack>
-  )
-}
+              <Accordion.Panel>
+                <TableList
+                  initialItems={options.messages}
+                  onItemsChange={updateMessages}
+                  isOrdered
+                  hasDefaultItem
+                  addLabel="Add message"
+                >
+                  {(props) => <ChatCompletionMessageItem {...props} />}
+                </TableList>
+              </Accordion.Panel>
+            </Accordion.Item>
+            <Accordion.Item>
+              <Accordion.Trigger>
+                <p className="w-full text-left">Advanced settings</p>
+              </Accordion.Trigger>
+              <Accordion.Panel>
+                <Field.Root>
+                  <Field.Label>Temperature</Field.Label>
+                  <BasicNumberInput
+                    placeholder="1"
+                    max={2}
+                    min={0}
+                    step={0.1}
+                    defaultValue={options.advancedSettings?.temperature}
+                    onValueChange={updateTemperature}
+                  />
+                </Field.Root>
+              </Accordion.Panel>
+            </Accordion.Item>
+            <Accordion.Item>
+              <Accordion.Trigger>
+                <p className="w-full text-left">Save answer</p>
+              </Accordion.Trigger>
+              <Accordion.Panel>
+                <TableList
+                  initialItems={options.responseMapping}
+                  onItemsChange={updateResponseMapping}
+                  newItemDefaultProps={{ valueToExtract: "Message content" }}
+                  hasDefaultItem
+                >
+                  {(props) => <ChatCompletionResponseItem {...props} />}
+                </TableList>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion.Root>
+        </>
+      )}
+    </div>
+  );
+};

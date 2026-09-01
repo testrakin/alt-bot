@@ -1,44 +1,56 @@
-import { TypebotLinkBlock } from '@typebot.io/schemas'
-import React from 'react'
-import { Tag, Text } from '@chakra-ui/react'
-import { useTypebot } from '@/features/editor/providers/TypebotProvider'
-import { byId } from '@typebot.io/lib'
+import { useQuery } from "@tanstack/react-query";
+import type { TypebotLinkBlock } from "@typebot.io/blocks-logic/typebotLink/schema";
+import { byId, isNotEmpty } from "@typebot.io/lib/utils";
+import { Badge } from "@typebot.io/ui/components/Badge";
+import { isSingleVariable } from "@typebot.io/variables/isSingleVariable";
+import { useMemo } from "react";
+import { useTypebot } from "@/features/editor/providers/TypebotProvider";
+import { orpc } from "@/lib/queryClient";
 
 type Props = {
-  block: TypebotLinkBlock
-}
+  block: TypebotLinkBlock;
+};
 
 export const TypebotLinkNode = ({ block }: Props) => {
-  const { linkedTypebots, typebot } = useTypebot()
+  const { typebot } = useTypebot();
+
+  const { data: linkedTypebotData } = useQuery(
+    orpc.typebot.getTypebot.queryOptions({
+      input: {
+        typebotId: block.options?.typebotId as string,
+      },
+      enabled:
+        isNotEmpty(block.options?.typebotId) &&
+        block.options?.typebotId !== "current",
+    }),
+  );
+
   const isCurrentTypebot =
     typebot &&
-    (block.options.typebotId === typebot.id ||
-      block.options.typebotId === 'current')
-  const linkedTypebot = isCurrentTypebot
-    ? typebot
-    : linkedTypebots?.find(byId(block.options.typebotId))
-  const blockTitle = linkedTypebot?.groups.find(
-    byId(block.options.groupId)
-  )?.title
-  if (!block.options.typebotId)
-    return <Text color="gray.500">Configure...</Text>
+    (block.options?.typebotId === typebot.id ||
+      block.options?.typebotId === "current");
+  const linkedTypebot = isCurrentTypebot ? typebot : linkedTypebotData?.typebot;
+
+  const groupTitle = useMemo(() => {
+    if (!block.options?.groupId) return;
+    if (isSingleVariable(block.options.groupId)) return block.options.groupId;
+    return linkedTypebot?.groups.find(byId(block.options.groupId))?.title;
+  }, [block.options?.groupId, linkedTypebot?.groups]);
+
+  if (!block.options?.typebotId) return <Badge>Configure...</Badge>;
   return (
-    <Text>
-      Jump{' '}
-      {blockTitle ? (
+    <p>
+      Jump{" "}
+      {groupTitle ? (
         <>
-          to <Tag>{blockTitle}</Tag>
+          to <Badge colorScheme="purple">{groupTitle}</Badge>
         </>
-      ) : (
-        <></>
-      )}{' '}
+      ) : null}{" "}
       {!isCurrentTypebot ? (
         <>
-          in <Tag colorScheme="blue">{linkedTypebot?.name}</Tag>
+          in <Badge>{linkedTypebot?.name}</Badge>
         </>
-      ) : (
-        <></>
-      )}
-    </Text>
-  )
-}
+      ) : null}
+    </p>
+  );
+};

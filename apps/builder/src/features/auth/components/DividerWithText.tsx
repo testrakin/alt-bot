@@ -1,31 +1,21 @@
-import {
-  FlexProps,
-  Flex,
-  Box,
-  Divider,
-  Text,
-  useColorModeValue,
-} from '@chakra-ui/react'
-import React from 'react'
+import { cn } from "@typebot.io/ui/lib/cn";
 
-export const DividerWithText = (props: FlexProps) => {
-  const { children, ...flexProps } = props
+export const DividerWithText = ({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) => {
   return (
-    <Flex align="center" color="gray.300" {...flexProps}>
-      <Box flex="1">
-        <Divider borderColor="currentcolor" />
-      </Box>
-      <Text
-        as="span"
-        px="3"
-        color={useColorModeValue('gray.600', 'gray.400')}
-        fontWeight="medium"
-      >
-        {children}
-      </Text>
-      <Box flex="1">
-        <Divider borderColor="currentcolor" />
-      </Box>
-    </Flex>
-  )
-}
+    <div className={cn("flex items-center", className)}>
+      <div className="flex-1">
+        <div className="h-px bg-gray-5" />
+      </div>
+      <span className="px-3 text-gray-11">{children}</span>
+      <div className="flex-1">
+        <div className="h-px bg-gray-5" />
+      </div>
+    </div>
+  );
+};

@@ -1,30 +1,32 @@
-import { useToast } from '@/hooks/useToast'
-import { trpc } from '@/lib/trpc'
-import { useScopedI18n } from '@/locales'
-import { Button, Link } from '@chakra-ui/react'
+import { useQuery } from "@tanstack/react-query";
+import { useTranslate } from "@tolgee/react";
+import { ButtonLink, type ButtonLinkProps } from "@/components/ButtonLink";
+import { orpc } from "@/lib/queryClient";
 
 type Props = {
-  workspaceId: string
-}
+  workspaceId: string;
+} & Pick<ButtonLinkProps, "variant">;
 
-export const BillingPortalButton = ({ workspaceId }: Props) => {
-  const scopedT = useScopedI18n('billing')
-  const { showToast } = useToast()
-  const { data } = trpc.billing.getBillingPortalUrl.useQuery(
-    {
-      workspaceId,
-    },
-    {
-      onError: (error) => {
-        showToast({
-          description: error.message,
-        })
+export const BillingPortalButton = ({ workspaceId, variant }: Props) => {
+  const { t } = useTranslate();
+  const { data } = useQuery(
+    orpc.billing.getBillingPortalUrl.queryOptions({
+      input: {
+        workspaceId,
       },
-    }
-  )
+      meta: {
+        errorContext: "Error getting billing portal url",
+      },
+    }),
+  );
+
   return (
-    <Button as={Link} href={data?.billingPortalUrl} isLoading={!data}>
-      {scopedT('billingPortalButton.label')}
-    </Button>
-  )
-}
+    <ButtonLink
+      href={data?.billingPortalUrl}
+      disabled={!data}
+      variant={variant}
+    >
+      {t("billing.billingPortalButton.label")}
+    </ButtonLink>
+  );
+};

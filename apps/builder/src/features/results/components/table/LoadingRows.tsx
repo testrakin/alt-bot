@@ -1,48 +1,40 @@
-import {
-  chakra,
-  Checkbox,
-  Flex,
-  Skeleton,
-  useColorModeValue,
-} from '@chakra-ui/react'
-import React from 'react'
+import { Checkbox } from "@typebot.io/ui/components/Checkbox";
+import { Skeleton } from "@typebot.io/ui/components/Skeleton";
 
 type LoadingRowsProps = {
-  totalColumns: number
-}
+  totalColumns: number;
+};
+
+const loadingRowKeys = Array.from(
+  { length: 3 },
+  (_, index) => `loading-row-${index}`,
+);
+
+const getColumnKeys = (totalColumns: number) =>
+  Array.from({ length: totalColumns }, (_, index) => `loading-col-${index}`);
 
 export const LoadingRows = ({ totalColumns }: LoadingRowsProps) => {
-  const borderColor = useColorModeValue('gray.200', 'gray.700')
+  const columnKeys = getColumnKeys(totalColumns);
+
   return (
     <>
-      {Array.from(Array(3)).map((_, idx) => (
-        <tr key={idx}>
-          <chakra.td
-            px="2"
-            py="2"
-            border="1px"
-            borderColor={borderColor}
-            width="40px"
-          >
-            <Flex ml="1">
-              <Checkbox isDisabled />
-            </Flex>
-          </chakra.td>
-          {Array.from(Array(totalColumns)).map((_, idx) => {
-            return (
-              <chakra.td
-                key={idx}
-                px="4"
-                py="2"
-                border="1px"
-                borderColor={borderColor}
-              >
-                <Skeleton height="5px" w="full" />
-              </chakra.td>
-            )
-          })}
+      {loadingRowKeys.map((rowKey) => (
+        <tr key={rowKey}>
+          <td className="px-2 py-2 border border-gray-6 w-10">
+            <div className="flex ml-1">
+              <Checkbox disabled />
+            </div>
+          </td>
+          {columnKeys.map((columnKey) => (
+            <td
+              className="px-4 py-2 border border-gray-6 w-full"
+              key={columnKey}
+            >
+              <Skeleton className="h-1 w-full" />
+            </td>
+          ))}
         </tr>
       ))}
     </>
-  )
-}
+  );
+};

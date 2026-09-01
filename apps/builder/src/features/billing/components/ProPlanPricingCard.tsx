@@ -1,299 +1,136 @@
-import {
-  Stack,
-  Heading,
-  chakra,
-  HStack,
-  Menu,
-  MenuButton,
-  Button,
-  MenuList,
-  MenuItem,
-  Text,
-  Tooltip,
-  Flex,
-  Tag,
-  useColorModeValue,
-} from '@chakra-ui/react'
-import { ChevronLeftIcon } from '@/components/icons'
-import { Plan } from '@typebot.io/prisma'
-import { useEffect, useState } from 'react'
-import { isDefined, parseNumberWithCommas } from '@typebot.io/lib'
-import {
-  chatsLimit,
-  computePrice,
-  formatPrice,
-  getChatsLimit,
-  getStorageLimit,
-  storageLimit,
-} from '@typebot.io/lib/pricing'
-import { FeaturesList } from './FeaturesList'
-import { MoreInfoTooltip } from '@/components/MoreInfoTooltip'
-import { useI18n, useScopedI18n } from '@/locales'
-import { Workspace } from '@typebot.io/schemas'
+import { T, useTranslate } from "@tolgee/react";
+import { prices } from "@typebot.io/billing/constants";
+import { formatPrice } from "@typebot.io/billing/helpers/formatPrice";
+import { Plan } from "@typebot.io/prisma/enum";
+import { Button } from "@typebot.io/ui/components/Button";
+import { MoreInfoTooltip } from "@typebot.io/ui/components/MoreInfoTooltip";
+import { Tooltip } from "@typebot.io/ui/components/Tooltip";
+import { useOpenControls } from "@typebot.io/ui/hooks/useOpenControls";
+import { TickIcon } from "@typebot.io/ui/icons/TickIcon";
+import { ChatsProTiersDialog } from "./ChatsProTiersDialog";
 
 type Props = {
-  workspace: Pick<
-    Workspace,
-    | 'additionalChatsIndex'
-    | 'additionalStorageIndex'
-    | 'plan'
-    | 'customChatsLimit'
-    | 'customStorageLimit'
-    | 'stripeId'
-  >
-  currentSubscription: {
-    isYearly?: boolean
-  }
-  currency?: 'usd' | 'eur'
-  isLoading: boolean
-  isYearly: boolean
-  onPayClick: (props: {
-    selectedChatsLimitIndex: number
-    selectedStorageLimitIndex: number
-  }) => void
-}
+  currentPlan: Plan;
+  currency?: "usd" | "eur";
+  isLoading: boolean;
+  onPayClick: () => void;
+};
 
 export const ProPlanPricingCard = ({
-  workspace,
-  currentSubscription,
+  currentPlan,
   currency,
   isLoading,
-  isYearly,
   onPayClick,
 }: Props) => {
-  const t = useI18n()
-  const scopedT = useScopedI18n('billing.pricingCard')
-  const [selectedChatsLimitIndex, setSelectedChatsLimitIndex] =
-    useState<number>()
-  const [selectedStorageLimitIndex, setSelectedStorageLimitIndex] =
-    useState<number>()
-
-  useEffect(() => {
-    if (
-      isDefined(selectedChatsLimitIndex) ||
-      isDefined(selectedStorageLimitIndex)
-    )
-      return
-    if (workspace.plan !== Plan.PRO) {
-      setSelectedChatsLimitIndex(0)
-      setSelectedStorageLimitIndex(0)
-      return
-    }
-    setSelectedChatsLimitIndex(workspace.additionalChatsIndex ?? 0)
-    setSelectedStorageLimitIndex(workspace.additionalStorageIndex ?? 0)
-  }, [
-    selectedChatsLimitIndex,
-    selectedStorageLimitIndex,
-    workspace.additionalChatsIndex,
-    workspace.additionalStorageIndex,
-    workspace?.plan,
-  ])
-
-  const workspaceChatsLimit = workspace ? getChatsLimit(workspace) : undefined
-  const workspaceStorageLimit = workspace
-    ? getStorageLimit(workspace)
-    : undefined
-
-  const isCurrentPlan =
-    chatsLimit[Plan.PRO].graduatedPrice[selectedChatsLimitIndex ?? 0]
-      .totalIncluded === workspaceChatsLimit &&
-    storageLimit[Plan.PRO].graduatedPrice[selectedStorageLimitIndex ?? 0]
-      .totalIncluded === workspaceStorageLimit &&
-    isYearly === currentSubscription?.isYearly
-
+  const { isOpen, onOpen, onClose } = useOpenControls();
+  const { t } = useTranslate();
   const getButtonLabel = () => {
-    if (
-      selectedChatsLimitIndex === undefined ||
-      selectedStorageLimitIndex === undefined
-    )
-      return ''
-    if (workspace?.plan === Plan.PRO) {
-      if (isCurrentPlan) return scopedT('upgradeButton.current')
-
-      if (
-        selectedChatsLimitIndex !== workspace.additionalChatsIndex ||
-        selectedStorageLimitIndex !== workspace.additionalStorageIndex
-      )
-        return t('update')
-    }
-    return t('upgrade')
-  }
-
-  const handlePayClick = async () => {
-    if (
-      selectedChatsLimitIndex === undefined ||
-      selectedStorageLimitIndex === undefined
-    )
-      return
-    onPayClick({
-      selectedChatsLimitIndex,
-      selectedStorageLimitIndex,
-    })
-  }
-
-  const price =
-    computePrice(
-      Plan.PRO,
-      selectedChatsLimitIndex ?? 0,
-      selectedStorageLimitIndex ?? 0,
-      isYearly ? 'yearly' : 'monthly'
-    ) ?? NaN
+    if (currentPlan === Plan.PRO)
+      return t("billing.pricingCard.upgradeButton.current");
+    return t("upgrade");
+  };
 
   return (
-    <Flex
-      p="6"
-      pos="relative"
-      h="full"
-      flexDir="column"
-      flex="1"
-      flexShrink={0}
-      borderWidth="1px"
-      borderColor={useColorModeValue('blue.500', 'blue.300')}
-      rounded="lg"
-    >
-      <Flex justifyContent="center">
-        <Tag
-          pos="absolute"
-          top="-10px"
-          colorScheme="blue"
-          bg={useColorModeValue('blue.500', 'blue.400')}
-          variant="solid"
-          fontWeight="semibold"
-          style={{ marginTop: 0 }}
-        >
-          {scopedT('pro.mostPopularLabel')}
-        </Tag>
-      </Flex>
-      <Stack justifyContent="space-between" h="full">
-        <Stack spacing="4" mt={2}>
-          <Heading fontSize="2xl">
-            {scopedT('heading', {
-              plan: (
-                <chakra.span color={useColorModeValue('blue.400', 'blue.300')}>
-                  Pro
-                </chakra.span>
-              ),
-            })}
-          </Heading>
-          <Text>{scopedT('pro.description')}</Text>
-        </Stack>
-        <Stack spacing="4">
-          <Heading>
-            {formatPrice(price, currency)}
-            <chakra.span fontSize="md">{scopedT('perMonth')}</chakra.span>
-          </Heading>
-          <Text fontWeight="bold">
-            <Tooltip
-              label={
-                <FeaturesList
-                  features={[
-                    scopedT('starter.brandingRemoved'),
-                    scopedT('starter.fileUploadBlock'),
-                    scopedT('starter.createFolders'),
-                  ]}
-                  spacing="0"
-                />
-              }
-              hasArrow
-              placement="top"
-            >
-              <chakra.span textDecoration="underline" cursor="pointer">
-                {scopedT('pro.everythingFromStarter')}
-              </chakra.span>
-            </Tooltip>
-            {scopedT('plus')}
-          </Text>
-          <FeaturesList
-            features={[
-              scopedT('pro.includedSeats'),
-              <HStack key="test">
-                <Text>
-                  <Menu>
-                    <MenuButton
-                      as={Button}
-                      rightIcon={<ChevronLeftIcon transform="rotate(-90deg)" />}
-                      size="sm"
-                      isLoading={selectedChatsLimitIndex === undefined}
-                    >
-                      {selectedChatsLimitIndex !== undefined
-                        ? parseNumberWithCommas(
-                            chatsLimit.PRO.graduatedPrice[
-                              selectedChatsLimitIndex
-                            ].totalIncluded
-                          )
-                        : undefined}
-                    </MenuButton>
-                    <MenuList>
-                      {chatsLimit.PRO.graduatedPrice.map((price, index) => (
-                        <MenuItem
-                          key={index}
-                          onClick={() => setSelectedChatsLimitIndex(index)}
-                        >
-                          {parseNumberWithCommas(price.totalIncluded)}
-                        </MenuItem>
-                      ))}
-                    </MenuList>
-                  </Menu>{' '}
-                  {scopedT('chatsPerMonth')}
-                </Text>
-                <MoreInfoTooltip>{scopedT('chatsTooltip')}</MoreInfoTooltip>
-              </HStack>,
-              <HStack key="test">
-                <Text>
-                  <Menu>
-                    <MenuButton
-                      as={Button}
-                      rightIcon={<ChevronLeftIcon transform="rotate(-90deg)" />}
-                      size="sm"
-                      isLoading={selectedStorageLimitIndex === undefined}
-                    >
-                      {selectedStorageLimitIndex !== undefined
-                        ? parseNumberWithCommas(
-                            storageLimit.PRO.graduatedPrice[
-                              selectedStorageLimitIndex
-                            ].totalIncluded
-                          )
-                        : undefined}
-                    </MenuButton>
-                    <MenuList>
-                      {storageLimit.PRO.graduatedPrice.map((price, index) => (
-                        <MenuItem
-                          key={index}
-                          onClick={() => setSelectedStorageLimitIndex(index)}
-                        >
-                          {parseNumberWithCommas(price.totalIncluded)}
-                        </MenuItem>
-                      ))}
-                    </MenuList>
-                  </Menu>{' '}
-                  {scopedT('storageLimit')}
-                </Text>
-                <MoreInfoTooltip>
-                  {scopedT('storageLimitTooltip')}
-                </MoreInfoTooltip>
-              </HStack>,
-              scopedT('pro.customDomains'),
-              scopedT('pro.analytics'),
-            ]}
-          />
-          <Stack spacing={3}>
-            {isYearly && workspace.stripeId && !isCurrentPlan && (
-              <Heading mt="0" fontSize="md">
-                You pay {formatPrice(price * 12, currency)} / year
-              </Heading>
-            )}
+    <>
+      <ChatsProTiersDialog isOpen={isOpen} onClose={onClose} />{" "}
+      <div className="flex p-6 relative h-full flex-col flex-1 border rounded-lg shrink-0 border-purple-6">
+        <div className="flex justify-center">
+          <div className="absolute top-[-10px] bg-purple-9 font-medium text-white text-xs px-2 py-1 rounded-md">
+            {t("billing.pricingCard.pro.mostPopularLabel")}
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 justify-between h-full">
+          <div className="flex flex-col gap-4 mt-2">
+            <h2 className="text-2xl">
+              <T
+                keyName="billing.pricingCard.heading"
+                params={{
+                  strong: <span className="text-purple-900">Pro</span>,
+                }}
+              />
+            </h2>
+            <p>{t("billing.pricingCard.pro.description")}</p>
+          </div>
+          <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-4">
+              <h2>
+                {formatPrice(prices.PRO, { currency })}
+                <span className="text-base">
+                  {t("billing.pricingCard.perMonth")}
+                </span>
+              </h2>
+              <p className="font-bold">
+                <Tooltip.Root>
+                  <Tooltip.Trigger className="underline cursor-pointer">
+                    {t("billing.pricingCard.pro.everythingFromStarter")}
+                  </Tooltip.Trigger>
+                  <Tooltip.Popup>
+                    <ul className="list-none gap-0 flex flex-col">
+                      <li className="flex">
+                        <TickIcon className="size-6" />
+                        {t("billing.pricingCard.starter.brandingRemoved")}
+                      </li>
+                      <li className="flex">
+                        <TickIcon className="size-6" />
+                        {t("billing.pricingCard.starter.fileUploadBlock")}
+                      </li>
+                      <li className="flex">
+                        <TickIcon className="size-6" />
+                        {t("billing.pricingCard.starter.createFolders")}
+                      </li>
+                    </ul>
+                  </Tooltip.Popup>
+                </Tooltip.Root>
+
+                {t("billing.pricingCard.plus")}
+              </p>
+              <ul className="list-none gap-2 flex flex-col">
+                <li className="flex">
+                  <TickIcon className="size-6" />
+                  {t("billing.pricingCard.pro.includedSeats")}
+                </li>
+                <li className="flex">
+                  <TickIcon className="size-6" />
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-0">
+                      <p>10,000 {t("billing.pricingCard.chatsPerMonth")}</p>
+                      <MoreInfoTooltip>
+                        {t("billing.pricingCard.chatsTooltip")}
+                      </MoreInfoTooltip>
+                    </div>
+                    <p className="text-sm text-gray-8">
+                      Extra chats:{" "}
+                      <Button size="xs" variant="outline" onClick={onOpen}>
+                        See tiers
+                      </Button>
+                    </p>
+                  </div>
+                </li>
+                <li className="flex">
+                  <TickIcon className="size-6" />
+                  {t("billing.pricingCard.pro.whatsAppIntegration")}
+                </li>
+                <li className="flex">
+                  <TickIcon className="size-6" />
+                  {t("billing.pricingCard.pro.customDomains")}
+                </li>
+                <li className="flex">
+                  <TickIcon className="size-6" />
+                  {t("billing.pricingCard.pro.analytics")}
+                </li>
+              </ul>
+            </div>
+
             <Button
-              colorScheme="blue"
-              variant="outline"
-              onClick={handlePayClick}
-              isLoading={isLoading}
-              isDisabled={isCurrentPlan}
+              variant="secondary"
+              onClick={onPayClick}
+              disabled={isLoading || currentPlan === Plan.PRO}
             >
               {getButtonLabel()}
             </Button>
-          </Stack>
-        </Stack>
-      </Stack>
-    </Flex>
-  )
-}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
